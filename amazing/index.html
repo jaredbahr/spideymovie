@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Amazing Spider-Man Duology</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: one centered screening-room column: screen, subtitle strip, transport, chapter cards */
+  --bg:#08070f; --panel:#13111f; --line:#2a2640; --ink:#ece8f6; --dim:#8d87a8;
+  --red:#d0202f; --blue:#2b4fc4; --sub:#fff4c2; --spk:#ff7a7a; --cue:#9db2ff;
+  --f-display:"Press Start 2P", ui-monospace, monospace;
+  --f-body:"VT323", ui-monospace, "Courier New", monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--f-body);font-size:20px;line-height:1.25}
+.wrap{max-width:980px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+h1{font-family:var(--f-display);font-size:clamp(13px,3vw,22px);margin:0;line-height:1.5;color:var(--red);text-shadow:3px 3px 0 var(--blue);text-wrap:balance}
+header p{margin:0;color:var(--dim)}
+.screen{position:relative;background:#000;border:2px solid var(--line);box-shadow:0 24px 70px #000c}
+canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/9;image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
+.subs{min-height:3.3em;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px 14px 10px;background:#000;color:var(--sub);font-size:clamp(19px,3.3vw,30px);line-height:1.1;text-wrap:balance}
+.subs .spk{color:var(--spk)}
+.subs .cue{color:var(--cue);font-style:italic}
+.now{position:absolute;top:8px;left:10px;font-family:var(--f-display);font-size:clamp(7px,1.3vw,10px);color:#fff9;text-shadow:1px 1px 0 #000;pointer-events:none}
+.start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0007;border:0;color:var(--ink);font:inherit;cursor:pointer;width:100%}
+.start b{font-family:var(--f-display);font-size:clamp(11px,2.4vw,18px);background:var(--red);padding:12px 18px;box-shadow:4px 4px 0 var(--blue)}
+.start span{color:#fff;text-shadow:1px 1px 0 #000;font-size:22px}
+.start:focus-visible b,button:focus-visible{outline:2px solid var(--sub);outline-offset:2px}
+.screen:fullscreen{display:flex;flex-direction:column;justify-content:center;border:0}
+.screen:fullscreen canvas{width:auto;height:calc(100vh - 4.2em);margin:0 auto}
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.transport button{font-family:var(--f-display);font-size:10px;color:var(--ink);background:var(--panel);border:2px solid var(--line);padding:9px 11px;cursor:pointer}
+.transport button:hover{border-color:var(--red)}
+.time{font-variant-numeric:tabular-nums;color:var(--dim);min-width:7.5em}
+.track{position:relative;flex:1 1 260px;min-width:0;height:28px;display:flex;align-items:center}
+.track input{width:100%;accent-color:var(--red);margin:0}
+.ticks{position:absolute;inset:0;pointer-events:none}
+.ticks i{position:absolute;top:2px;bottom:2px;width:2px;background:var(--blue)}
+.chapters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.chapters button{text-align:left;font:inherit;color:var(--ink);background:var(--panel);border:2px solid var(--line);padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0}
+.chapters button.on{border-color:var(--red);box-shadow:3px 3px 0 var(--blue)}
+.chapters b{font-family:var(--f-display);font-size:10px;line-height:1.5}
+.chapters small{color:var(--dim);font-size:18px}
+.note{color:var(--dim);font-size:18px;margin:0}
+@media (max-width:560px){.chapters{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>THE AMAZING SPIDER-MAN: PIXEL DUOLOGY</h1>
+    <p>Both films. From memory. No audio.</p>
+  </header>
+
+  <div class="screen" id="screen">
+    <canvas id="cv" width="320" height="180" aria-label="Pixel art movie"></canvas>
+    <div class="now" id="now"></div>
+    <div class="subs" id="subs" aria-live="polite"></div>
+    <button class="start" id="start" type="button"><b>&#9654; PRESS START</b><span id="runtime">Runtime 7:00 · subtitles on · sound off forever</span></button>
+  </div>
+
+  <div class="transport">
+    <button id="play" type="button">PLAY</button>
+    <button id="prev" type="button" aria-label="Previous scene">&#9664;&#9664;</button>
+    <button id="next" type="button" aria-label="Next scene">&#9654;&#9654;</button>
+    <div class="track"><input id="scrub" type="range" min="0" max="420" step="0.1" value="0" aria-label="Seek"><div class="ticks" id="ticks"></div></div>
+    <span class="time" id="time">00:00 / 07:00</span>
+    <button id="fs" type="button">FULL</button>
+  </div>
+
+  <div class="chapters" id="chapters"></div>
+  <p class="note" id="note">Space plays and pauses. Arrow keys skip 10 seconds. N and P jump scenes. F goes fullscreen.</p>
+</div>
+
+<script>
+'use strict';
+// ============================================================ engine
+const W=320,H=180;
+const cv=document.getElementById('cv'),c=cv.getContext('2d');
+const SK='#f0c08e';
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const L=(a,b,p)=>a+(b-a)*clamp(p);
+const seg=(p,a,b)=>clamp((p-a)/(b-a));
+const ez=p=>{p=clamp(p);return p*p*(3-2*p)};
+const rng=s=>()=>(s=(s*16807)%2147483647)/2147483647;
+function hex(h){const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]}
+function mix(a,b,t){const A=hex(a),B=hex(b);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*clamp(t)).toString(16).padStart(2,'0')).join('')}
+function R(x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function disc(cx,cy,r,col){r=Math.round(r);for(let y=-r;y<=r;y++){const w=Math.round(Math.sqrt(Math.max(0,r*r-y*y)));R(cx-w,cy+y,w*2+1,1,col)}}
+function T(s,x,y,col='#fff',size=8,al='center',sh='#000'){c.font=size+'px "Press Start 2P", monospace';c.textAlign=al;c.textBaseline='middle';const o=Math.max(1,Math.round(size/8));if(sh){c.fillStyle=sh;c.fillText(s,x+o,y+o)}c.fillStyle=col;c.fillText(s,x,y)}
+function ln(x1,y1,x2,y2,col='#eef2ff',w=1){c.strokeStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()}
+function fade(a,col='#000'){a=clamp(a);if(a<=0)return;c.globalAlpha=a;R(0,0,W,H,col);c.globalAlpha=1}
+function alpha(a,fn){c.globalAlpha=clamp(a);fn();c.globalAlpha=1}
+function shake(k,t){c.translate(Math.round(Math.sin(t*90)*k),Math.round(Math.cos(t*70)*k))}
+
+// ---------------------------------------------------------------- sky + city
+const SKIES={day:['#4aa3e8','#cbeefe'],dusk:['#2a1b52','#f59a5a'],night:['#060a22','#28326a'],gray:['#59606e','#aeb3bd'],dawn:['#7a5aa0','#ffd7a0']};
+const STARS=[];{const r=rng(3);for(let i=0;i<80;i++)STARS.push([r()*W|0,r()*110|0,r()])}
+function sky(m,t=0){const[a,b]=SKIES[m];for(let i=0;i<12;i++)R(0,i*15,W,15,mix(a,b,i/11));if(m==='night')for(const s of STARS)R(s[0],s[1],1,1,(s[2]+t*.4)%1<.85?'#fff':'#5a63a0')}
+function mkCity(seed,minH,maxH,minW,maxW){const r=rng(seed),b=[];let x=0;while(x<700){const w=(minW+r()*(maxW-minW))|0,h=(minH+r()*(maxH-minH))|0,wins=[];for(let wy=4;wy<h-3;wy+=5)for(let wx=2;wx<w-2;wx+=4)if(r()<.5)wins.push(wx,wy);b.push({x,w,h,wins,ant:r()<.22});x+=w+((r()*3)|0)}return{b,tw:x}}
+const FAR=mkCity(7,40,105,10,24),NEAR=mkCity(41,25,75,16,32);
+const CITYCOL={day:[['#93aac4',null],['#6a819c','#cde3f5']],dusk:[['#4b2f63','#ffb36b'],['#2b1c3d','#ffcf7a']],night:[['#161b3a','#9a8a4a'],['#0c1026','#ffd25a']],gray:[['#7c8290',null],['#5a606c','#c3c7cf']],dawn:[['#9a6a8a',null],['#5a3a5a','#ffd9a0']]};
+function layer(Lr,base,sc,col,win,t){for(const b of Lr.b){let x=((b.x-sc)%Lr.tw+Lr.tw)%Lr.tw;if(x>W)x-=Lr.tw;if(x+b.w<0)continue;const top=base-b.h;R(x,top,b.w,b.h+40,col);if(b.ant){R(x+(b.w>>1),top-7,1,7,col);if((t*2+b.x)%2<1)R(x+(b.w>>1),top-8,1,1,'#ff3b3b')}if(win)for(let i=0;i<b.wins.length;i+=2)R(x+b.wins[i],top+b.wins[i+1],2,2,win)}}
+function city(m,base=150,sc=0,t=0){const cc=CITYCOL[m];layer(FAR,base,sc*.35,cc[0][0],cc[0][1],t);layer(NEAR,base,sc,cc[1][0],cc[1][1],t)}
+function cityBG(m,base=150,sc=0,t=0,moon){sky(m,t);if(moon)disc(moon[0],moon[1],10,m==='night'?'#f3eccc':'#fff4d0');city(m,base,sc,t)}
+function street(base,sc=0){R(0,base,W,H-base,'#2c2c35');R(0,base,W,7,'#77727f');R(0,base+7,W,1,'#4a4652');for(let i=0;i<12;i++){const x=((i*40-sc*1.2)%480+480)%480-40;R(x,base+20,18,2,'#d9c85a')}}
+function roof(base,col='#3d3644'){R(0,base,W,H-base,col);R(0,base,W,3,mix(col,'#ffffff',.2))}
+function tower(x,base){R(x-7,base-12,1,12,'#2a2a2a');R(x+6,base-12,1,12,'#2a2a2a');R(x-9,base-28,18,16,'#7a5233');for(let i=0;i<4;i++)R(x-9,base-26+i*4,18,1,'#5a3a22');R(x-9,base-30,18,2,'#5a3a22');R(x-6,base-32,12,2,'#5a3a22');R(x-2,base-34,4,2,'#5a3a22')}
+function wallFloor(wall,floor,fy=125){R(0,0,W,fy,wall);R(0,fy,W,H-fy,floor);R(0,fy-3,W,3,mix(wall,'#000000',.35))}
+function win(x,y,w,h,m,t=0){R(x-3,y-3,w+6,h+6,'#2e2219');c.save();c.beginPath();c.rect(x,y,w,h);c.clip();sky(m,t);city(m,y+h+12,x*3,t);c.restore();R(x+w/2-1,y,2,h,'#2e2219')}
+function rain(t,n=90,col='#8fa3c8'){for(let i=0;i<n;i++){const x=(i*37.3+t*20)%W,y=(i*53.7+t*260)%H;R(x,y,1,4,col)}}
+function fire(x,y,w,t,hgt=24){for(let i=0;i<w;i+=2){const h=hgt*(.4+.6*Math.abs(Math.sin(t*9+i*1.7)));R(x+i,y-h,2,h,i%6<2?'#ff4a1a':'#ff8a1f');R(x+i,y-h*.5,2,h*.5,'#ffd23f')}}
+function boom(x,y,r,t){const k=(t*20|0)%2;disc(x,y,r+k,'#ff4a1a');disc(x,y,r*.7,'#ff9a2e');disc(x,y,r*.38,'#fff3b0')}
+function sparks(x,y,t,n=8,col='#ffe066'){const r=rng((t*12|0)+5);for(let i=0;i<n;i++)R(x+(r()-.5)*20,y+(r()-.5)*20,1,1,col)}
+function heart(x,y,col='#ff4f7a'){R(x-3,y-2,2,2,col);R(x+1,y-2,2,2,col);R(x-3,y,6,1,col);R(x-2,y+1,4,1,col);R(x-1,y+2,2,1,col)}
+function sfx(s,x,y,col='#ffe066',size=8){T(s,x,y,col,size,'center','#1a0a2a')}
+function spiderbug(x,y){R(x-1,y,3,2,'#c8102e');R(x,y-1,1,1,'#1f3a9e');R(x-2,y,1,1,'#111');R(x+2,y,1,1,'#111');R(x-2,y+2,1,1,'#111');R(x+2,y+2,1,1,'#111')}
+function pumpkin(x,y){R(x-1,y-1,3,3,'#ff8a1f');R(x,y-2,1,1,'#3a7a2a');R(x-1,y,1,1,'#7a3a00');R(x+1,y,1,1,'#7a3a00')}
+function goo(x,y,t,s=1){for(let i=0;i<5;i++)disc(x+Math.sin(t*3+i*1.3)*4*s,y+Math.cos(t*2.3+i)*2*s,(3+i%2)*s,'#0b0b12');R(x-1,y-2*s,2,1,'#3d4a6a')}
+function sandbits(x,y,t,n=20,spread=20,col='#c9a35c'){const r=rng(9);for(let i=0;i<n;i++){const a=r()*6.28+t*(1+r()),d=r()*spread;R(x+Math.cos(a)*d,y+Math.sin(a)*d*.6,1,1,i%3?col:'#a5823f')}}
+
+// ---------------------------------------------------------------- vehicles & props
+function bus(x,y){R(x,y-18,58,14,'#f6c21c');R(x+58,y-12,6,8,'#f6c21c');R(x,y-9,64,1,'#222');for(let i=0;i<7;i++){R(x+3+i*8,y-16,6,5,'#9fd3f0');if(i%2)R(x+4+i*8,y-14,3,3,SK)}disc(x+12,y-3,3,'#1a1a1a');disc(x+50,y-3,3,'#1a1a1a')}
+function car(x,y,col='#7a2a2a',f=1){c.save();c.translate(Math.round(x),Math.round(y));c.scale(f,1);R(-15,-8,30,5,col);R(-8,-12,15,4,col);R(-6,-11,5,3,'#9fd3f0');R(1,-11,5,3,'#9fd3f0');R(13,-7,2,2,'#ffe58a');disc(-9,-2,2,'#111');disc(9,-2,2,'#111');c.restore()}
+function glider(x,y,f=1,t=0,col='#3d434d'){c.save();c.translate(Math.round(x),Math.round(y));c.scale(f,1);R(-11,0,22,2,col);R(-14,-1,4,2,col);R(10,-1,4,2,col);R(-4,2,8,2,col);R(-12,1,1,1,'#ffd23f');R(11,1,1,1,'#ffd23f');const fl=(t*20|0)%2;R(-17-fl*2,0,4+fl*2,2,'#ff8a1f');R(-15,0,2,1,'#ffe066');c.restore()}
+function board(x,y,f=1,t=0){c.save();c.translate(Math.round(x),Math.round(y));c.scale(f,1);R(-9,0,18,2,'#5a5f6a');R(-6,2,12,1,'#2a2a2e');const fl=(t*20|0)%2;R(-13-fl,0,4+fl,2,'#4ab3ff');c.restore()}
+function tcar(x,y){R(x,y-22,60,20,'#b9bec7');R(x,y-9,60,2,'#c0392b');for(let i=0;i<5;i++)R(x+4+i*11,y-18,8,6,'#36506e');R(x+6,y-2,8,2,'#333');R(x+46,y-2,8,2,'#333')}
+function crowd(base,n,seed,t,cheer=1,sc=1){const r=rng(seed),tops=['#c0392b','#2e86c1','#27ae60','#f39c12','#8e44ad','#d35400','#7f8c8d'],hair=['#2a1a10','#6a4a2a','#111','#c9a46a','#888'];for(let i=0;i<n;i++){const x=i*(W/n)+r()*6,b=Math.round(Math.sin(t*6*cheer+i)*cheer);R(x,base-9*sc+b,7*sc,10*sc,tops[i%7]);R(x+1*sc,base-14*sc+b,5*sc,5*sc,SK);R(x+1*sc,base-15*sc+b,5*sc,2*sc,hair[i%5])}}
+function tentArm(x1,y1,x2,y2,t,wob=4){const n=14;let px=x1,py=y1;for(let i=0;i<=n;i++){const k=i/n,nx=-(y2-y1),ny=x2-x1,len=Math.hypot(nx,ny)||1,w=Math.sin(k*Math.PI)*Math.sin(t*3+k*4)*wob;px=L(x1,x2,k)+nx/len*w;py=L(y1,y2,k)+ny/len*w;R(px-1,py-1,3,3,i%2?'#7d828c':'#a3a8b2')}R(px-2,py-2,5,5,'#5d626b');R(px-1,py-1,2,2,'#ff3a3a')}
+function tents(x,y,f,t,len=24,s=1){const sx=x-f*2*s,sy=y-14*s;const base=[-2.4,-.8,2.5,.7];for(let i=0;i<4;i++){let a=base[i];if(f<0)a=Math.PI-a;const ex=sx+Math.cos(a+Math.sin(t*2+i)*.3)*len*s,ey=sy+Math.sin(a+Math.sin(t*2+i)*.3)*len*s;tentArm(sx,sy,ex,ey,t+i,3*s)}}
+
+// ---------------------------------------------------------------- characters
+const CH={
+ peter:{hair:'#4b2d17',hs:'short',top:'#6f86b8',legs:'#3a405c',shoe:'#2b1d12',gl:1},
+ peter2:{hair:'#4b2d17',hs:'short',top:'#8a6a4a',legs:'#3a405c',shoe:'#2b1d12'},
+ emo:{hair:'#111',hs:'emo',top:'#1a1a1f',legs:'#1a1a1f',shoe:'#111'},
+ spidey:{suit:'spidey'}, black:{suit:'black'}, venom:{suit:'venom',s:1.35}, goblin:{suit:'goblin'},
+ sandy:{suit:'sand'}, luch:{suit:'luch'}, newgob:{suit:'newgob',hair:'#6e4a2a',hs:'slick'},
+ mj:{hair:'#c4361d',hs:'long',top:'#3f7f5a',legs:'#2b2b45',dress:'#3f7f5a'},
+ mjw:{hair:'#c4361d',hs:'long',top:'#f4f1ea',legs:'#f4f1ea',dress:'#f4f1ea',shoe:'#ddd'},
+ may:{hair:'#d9d9de',hs:'bun',top:'#8f6fa6',legs:'#8f6fa6',dress:'#8f6fa6',shoe:'#5a3a3a'},
+ ben:{hair:'#c9c9c9',hs:'short',top:'#a87a4c',legs:'#4c4c52'},
+ harry:{hair:'#6e4a2a',hs:'slick',top:'#2f3540',legs:'#2f3540'},
+ norman:{hair:'#9a8a78',hs:'slick',top:'#3f4858',legs:'#2a2a30'},
+ jjj:{hair:'#2b2b2b',hs:'flat',top:'#7c6a50',legs:'#4a3d2e',stache:1,cigar:1},
+ otto:{hair:'#4a3626',hs:'short',top:'#4a3a2a',legs:'#2a2a2a',coat:'#5c4630',shades:1},
+ flash:{hair:'#d8b46a',hs:'short',top:'#b8323a',arm:'#eeeeee',legs:'#2c3e70'},
+ thief:{hair:'#1b1b1b',hs:'cap',top:'#3c3c44',legs:'#22222a'},
+ sci:{hair:'#5a5a5a',hs:'short',top:'#eef1f4',legs:'#3a3a44',coat:'#eef1f4',gl:1},
+ gen:{hair:'#555',hs:'buzz',top:'#4a5a3a',legs:'#4a5a3a'},
+ guide:{hair:'#3a2a1a',hs:'bun',top:'#2f6f8f',legs:'#2a2a33',dress:'#2f6f8f'},
+ bone:{hair:'#222',hs:'bald',top:'#1d1d1d',arm:SK,legs:'#30304a',s:1.4},
+ cop:{hair:'#222',hs:'cap',top:'#1f2f5a',legs:'#1f2f5a'},
+ aziz:{hair:'#222',hs:'short',top:'#d64a2a',legs:'#333',stache:1},
+ usher:{hair:'#333',hs:'short',top:'#7a1a2a',legs:'#111'},
+ rosie:{hair:'#3a2a1a',hs:'long',top:'#7a5a8a',legs:'#333',dress:'#7a5a8a'},
+ doc:{hair:'#777',hs:'short',top:'#5fa79a',legs:'#5fa79a'},
+ banker:{hair:'#333',hs:'slick',top:'#2a2a3a',legs:'#2a2a3a',gl:1},
+ kid:{hair:'#7a4a2a',hs:'short',top:'#d9a03a',legs:'#3a4a7a',s:.65},
+ pass1:{hair:'#2a2a2a',hs:'short',top:'#6a4a7a',legs:'#333'},
+ pass2:{hair:'#8a6a3a',hs:'long',top:'#3a7a8a',legs:'#333',dress:'#3a7a8a'},
+ john:{hair:'#b8913a',hs:'short',top:'#1c1c22',legs:'#1c1c22'},
+ priest:{hair:'#aaa',hs:'bald',top:'#111',legs:'#111',coat:'#111'},
+ marko:{hair:'#3a2a1a',hs:'buzz',top:'#5d7a3a',side:'#3f5a24',legs:'#6a5a3a'},
+ gwen:{hair:'#f2d877',hs:'long',top:'#e8e2d0',legs:'#2a2a3a',dress:'#2a2a3a'},
+ eddie:{hair:'#c9a46a',hs:'spiky',top:'#d9d9d9',legs:'#3a3a3a'},
+ capt:{hair:'#bbb',hs:'short',top:'#3a3f4a',legs:'#3a3f4a',stache:1},
+ butler:{hair:'#ddd',hs:'bald',top:'#111',legs:'#111'},
+ mayor:{hair:'#888',hs:'slick',top:'#2a2a4a',legs:'#2a2a4a'},
+ bouncer:{hair:'#111',hs:'bald',top:'#111',legs:'#111',s:1.2},
+};
+const SUITS={
+ spidey:{head:'#c8102e',top:'#c8102e',side:'#1f3a9e',arm:'#c8102e',hand:'#c8102e',legs:'#1f3a9e',shoe:'#c8102e',eye:'#fff',logo:'#111',line:'#86091d',mask:1},
+ black:{head:'#15151c',top:'#15151c',side:'#2d3854',arm:'#15151c',hand:'#15151c',legs:'#15151c',shoe:'#15151c',eye:'#fff',logo:'#e8e8f0',line:'#2d3854',mask:1},
+ venom:{head:'#0d0d12',top:'#0d0d12',side:'#25304a',arm:'#0d0d12',hand:'#0d0d12',legs:'#0d0d12',shoe:'#0d0d12',eye:'#fff',logo:'#e8e8f0',mask:1,venom:1},
+ goblin:{head:'#4f8f36',top:'#3b6e2e',side:'#24461b',arm:'#3b6e2e',hand:'#6a2c7a',legs:'#3b6e2e',shoe:'#6a2c7a',eye:'#ffd23f',mask:1,gob:1},
+ sand:{head:'#c9a35c',top:'#c9a35c',side:'#a8843f',arm:'#c9a35c',hand:'#c9a35c',legs:'#a8843f',shoe:'#a8843f',mask:1,sand:1},
+ luch:{head:'#b3202b',top:'#b3202b',side:'#8a1820',arm:'#b3202b',hand:'#b3202b',legs:'#3a4f80',shoe:'#222',eye:'#bfe6ff',mask:1},
+ newgob:{head:SK,top:'#26272c',side:'#5a5f6a',arm:'#26272c',hand:'#111',legs:'#26272c',shoe:'#111'},
+};
+function hair(hs,col,hy){switch(hs){
+ case'short':R(-3,hy-1,6,2,col);R(-3,hy+1,1,2,col);break;
+ case'slick':R(-3,hy-1,6,2,col);R(-3,hy,2,3,col);break;
+ case'long':R(-3,hy-1,7,2,col);R(-4,hy,2,9,col);R(3,hy,1,2,col);break;
+ case'bun':R(-3,hy-1,6,2,col);R(-5,hy-1,2,3,col);break;
+ case'flat':R(-3,hy-3,6,3,col);R(-3,hy,1,2,'#aaa');break;
+ case'emo':R(-3,hy-1,7,2,col);R(0,hy+1,4,2,col);R(-4,hy,2,4,col);break;
+ case'spiky':R(-3,hy-1,6,2,col);R(-3,hy-2,1,1,col);R(-1,hy-2,1,1,col);R(1,hy-2,1,1,col);break;
+ case'buzz':R(-3,hy,6,1,col);break;
+ case'cap':R(-3,hy-1,6,2,col);R(3,hy,2,1,col);break;
+ case'bald':R(-3,hy+1,1,2,col);break;}}
+function arm(kind,front,by,col,hand,sw=0){const x=front?4:-6;switch(kind){
+ case'up':R(x,-22+by,2,6,col);R(x,-24+by,2,2,hand);break;
+ case'out':if(front){R(4,-16+by,6,2,col);R(10,-16+by,2,2,hand)}else{R(-10,-16+by,6,2,col);R(-12,-16+by,2,2,hand)}break;
+ case'fwdup':R(x,-18+by,2,2,col);R(x+2,-20+by,2,2,col);R(x+4,-22+by,2,2,hand);break;
+ case'face':R(2,-18+by,2,3,col);R(1,-20+by,2,2,hand);break;
+ case'gun':R(4,-16+by,6,2,col);R(10,-16+by,2,2,hand);R(10,-18+by,1,2,hand);break;
+ case'short':R(x,-15+by,4,2,col);R(x+4,-15+by,2,2,hand);break;
+ default:R(x,-16+by+sw,2,6,col);R(x,-10+by+sw,2,2,hand)}}
+function person(x,y,ch,o={}){
+ const s=(o.s||2)*(ch.s||1),f=o.f||1,pose=o.pose||'stand',ph=o.ph||0;
+ c.save();c.translate(Math.round(x),Math.round(y));
+ if(o.rot){c.translate(0,-12*s);c.rotate(o.rot);c.translate(0,12*s)}
+ c.scale(f*s,s);
+ let P=ch.suit?Object.assign({},SUITS[ch.suit]):{head:SK,top:ch.top,side:ch.side||ch.top,arm:ch.arm||ch.top,hand:SK,legs:ch.legs,shoe:ch.shoe||'#222'};
+ const face=o.unmask||(!P.mask&&ch);
+ let by=0;
+ // legs
+ if(pose==='crouch'){by=4;R(-7,-4,4,2,P.legs);R(-7,-2,2,2,P.shoe);R(3,-4,4,2,P.legs);R(5,-2,2,2,P.shoe)}
+ else if(pose==='sit'||pose==='piano'){by=3;R(-3,-5,8,3,P.legs);R(4,-5,2,5,P.legs);R(4,-1,3,1,P.shoe)}
+ else if(pose==='jump'){R(-4,-8,2,5,P.legs);R(-5,-4,2,2,P.shoe);R(1,-8,2,4,P.legs);R(2,-5,3,2,P.shoe)}
+ else{const a=(pose==='walk'||pose==='run'||pose==='strut')?Math.round(Math.sin(ph)*(pose==='run'?3:2)):0;R(-3+a,-8,2,7,P.legs);R(-3+a,-1,3,1,P.shoe);R(1-a,-8,2,7,P.legs);R(1-a,-1,3,1,P.shoe)}
+ const sw=(pose==='walk'||pose==='run')?Math.round(Math.sin(ph)*1.5):0;
+ const ak={stand:['d','d'],walk:['d','d'],run:['d','d'],up:['up','up'],swing:['up','up'],fall:['up','up'],jump:['up','up'],punch:['d','out'],point:['d','out'],thwip:['d','out'],web:['d','fwdup'],hold:['out','out'],crouch:['d','d'],cry:['d','face'],sit:['d','d'],piano:['short','short'],gun:['d','gun'],strut:['d','gun']}[pose]||['d','d'];
+ const bc=mix(P.arm,'#000000',.3),bh=mix(P.hand,'#000000',.3);
+ arm(ak[0],false,by,bc,bh,-sw);
+ // torso
+ R(-4,-16+by,8,8,P.top);
+ if(P.side!==P.top){R(-4,-16+by,2,8,P.side);R(2,-16+by,2,8,P.side)}
+ if(ch===CH.marko)for(let i=0;i<4;i++)R(-4,-15+by+i*2,8,1,P.side);
+ if(ch.coat)R(-4,-9+by,8,6,ch.coat);
+ if(ch.dress)R(-5,-9+by,10,6,ch.dress);
+ if(P.logo){R(-1,-14+by,2,3,P.logo);R(-2,-13+by,4,1,P.logo)}
+ // head
+ const hy=-23+by;
+ if(face&&o.unmask){R(-3,hy,6,7,SK);hair(o.unmask.hs||'short',(o.unmask.hair||'#4b2d17'),hy);R(1,hy+3,1,1,'#222');R(-1,hy+3,1,1,'#222')}
+ else if(P.mask){
+  R(-3,hy,6,7,P.head);
+  if(P.liz){R(1,hy+3,5,3,P.head);R(5,hy+3,1,1,'#222');R(1,hy+1,2,1,'#ffd23f');R(1,hy+6,5,1,'#fff')}
+  else if(P.elec){R(-2,hy+2,2,2,'#fff');R(1,hy+2,2,2,'#fff');R(-3,hy+5,6,1,'#1a3a8a')}
+  else if(P.tasm){R(-3,hy+4,6,1,P.line);R(0,hy,1,7,P.line);R(-3,hy+1,3,3,'#1a1a1a');R(1,hy+1,3,3,'#1a1a1a');R(-2,hy+2,2,2,P.eye);R(1,hy+2,2,2,P.eye)}
+  else if(P.venom){R(-3,hy+1,3,2,'#fff');R(1,hy+1,3,2,'#fff');R(-2,hy+5,6,1,'#fff');R(3,hy+6,3,1,'#c22')}
+  else if(P.gob){R(-4,hy,1,2,P.head);R(3,hy,1,2,P.head);R(-2,hy+2,2,1,P.eye);R(1,hy+2,2,1,P.eye);R(-1,hy+5,4,1,'#1a2a10')}
+  else if(P.sand){if((Math.sin(o.t||0)*10|0)%2)R(-4,hy+2,1,1,P.side);R(1,hy+3,1,1,P.side)}
+  else{R(-3,hy+3,6,1,P.line||P.head);R(-2,hy+2,2,2,P.eye);R(1,hy+2,2,2,P.eye)}
+  if(o.half){R(-3,hy+4,6,3,SK);R(0,hy+5,2,1,'#a33')}
+ } else {
+  R(-3,hy,6,7,SK);hair(ch.hs,ch.hair,hy);
+  R(1,hy+3,1,1,'#222');R(-1,hy+3,1,1,'#222');
+  if(ch.gl){R(-2,hy+2,6,1,'#1a1a1a');R(-2,hy+3,1,1,'#1a1a1a');R(3,hy+3,1,1,'#1a1a1a')}
+  if(ch.shades||o.goggles)R(-2,hy+2,6,2,o.goggles?'#5a5f6a':'#111');
+  if(ch.stache)R(0,hy+5,3,1,ch.hair==='#bbb'?'#999':ch.hair);
+  if(ch.cigar){R(2,hy+5,4,1,'#6b4423');R(6,hy+5,1,1,'#ff6a00')}
+  if(o.mouth)R(0,hy+5,2,1,'#7a2a2a');
+  if(o.glow)R(1,hy+3,1,1,'#ffd23f');
+  if(o.scar)R(-3,hy+1,3,5,'#b06a5a');
+ }
+ if(!ch.onearm)arm(ak[1],true,by,P.arm,P.hand,sw);
+ if(ch.band)R(-3,hy-1,6,1,'#1a1a2a');
+ c.restore();
+}
+function swing(ax,ay,len,ang,ch,o={}){const hx=ax+Math.sin(ang)*len,hy=ay+Math.cos(ang)*len;ln(ax,ay,hx,hy);c.save();c.translate(hx,hy);c.rotate(-ang);person(0,24*(o.s||2)/2,ch,Object.assign({pose:'swing'},o));c.restore();return[hx,hy]}
+function upside(x,y,ch,o={}){ln(x,0,x,y);c.save();c.translate(x,y);c.rotate(Math.PI);person(0,0,ch,o);c.restore()}
+
+// ---------------------------------------------------------------- interiors
+function labBG(t,tint='#2c3a48'){wallFloor(tint,'#1a2028');for(let i=0;i<6;i++){const x=8+i*52;R(x,30,40,70,mix(tint,'#000000',.3));R(x+3,33,34,28,'#0d1a22');for(let j=0;j<6;j++)R(x+5+j*5,70,3,2,((t*3+i+j)|0)%3===0?'#3dff7a':'#245a3a');R(x+5,80,30,2,'#59656f')}}
+function room(m,t){wallFloor('#5b4a6e','#4a3324');for(let i=0;i<W;i+=16)R(i,0,1,122,'#665578');win(36,26,60,50,m,t);R(196,118,100,16,'#c9c3d9');R(196,124,100,10,'#8a3a3a');R(198,112,20,8,'#eeeeee');R(120,92,44,4,'#6a4a30');R(124,96,2,26,'#6a4a30');R(158,96,2,26,'#6a4a30');R(140,82,2,10,'#333');R(136,80,10,3,'#e8d27a');R(176,24,18,26,'#222');R(180,28,10,10,'#c8102e')}
+function hall(){wallFloor('#c9c3a8','#8a8577',125);for(let i=0;i<20;i++){const x=i*16;R(x,40,14,82,'#3b5b8c');R(x+2,46,10,1,'#2a4268');R(x+2,49,10,1,'#2a4268');R(x+10,80,2,4,'#ccc')}R(0,20,W,4,'#a99f80')}
+function ringBG(t){R(0,0,W,H,'#0d0d14');alpha(.12,()=>{c.fillStyle='#fff6c0';c.beginPath();c.moveTo(150,0);c.lineTo(170,0);c.lineTo(300,130);c.lineTo(20,130);c.fill()});crowd(70,26,4,t,1.5,1);R(0,74,W,4,'#222');R(10,128,300,10,'#1d1d6e');R(10,124,300,4,'#c8c8d0');for(let k=0;k<3;k++)R(10,92+k*10,300,1,'#d0202f');R(10,86,4,42,'#999');R(306,86,4,42,'#999')}
+function office(t){wallFloor('#8f7f62','#5a4632');win(210,18,96,64,'day',t);R(14,16,120,18,'#efe9da');T('DAILY BUGLE',74,25,'#111',8,'center',null)}
+function bridgeBG(t){sky('night',t);disc(270,30,9,'#f3eccc');city('night',150,0,t);R(0,140,W,40,'#14203a');for(let i=0;i<20;i++)R((i*31+t*8)%W,146+(i%5)*6,8,1,'#2c4470');R(20,20,16,125,'#4a4f5a');R(24,20,2,125,'#2e323a');R(30,20,2,125,'#2e323a');R(0,118,W,6,'#4a4f5a');R(0,124,W,2,'#2e323a');for(let i=0;i<8;i++)ln(28,22,60+i*36,118,'#6a707c')}
+function ruins(t){R(0,0,W,H,'#3a2422');for(let y=0;y<130;y+=6)for(let x=(y/6%2)*6;x<W;x+=12)R(x,y,11,5,'#4a2e2a');c.save();c.beginPath();c.rect(200,10,90,60);c.rect(30,40,50,40);c.clip();sky('night',t);c.restore();R(0,130,W,50,'#2a1a18');for(let i=0;i<12;i++)R(i*28+5,126+(i%3)*2,14,6,'#5a3a32')}
+function graves(){sky('gray');R(0,120,W,60,'#4f6b3a');for(let i=0;i<7;i++){const x=20+i*44,y=108+(i%2)*6;R(x,y,14,18,'#8c8f96');R(x+2,y-2,10,2,'#8c8f96');R(x+5,y+4,4,1,'#6a6d74')}}
+function dining(t){wallFloor('#7a4a34','#3a2618',120);win(220,22,70,50,'night',t);R(30,10,30,40,'#5a3a22');R(33,13,24,34,'#c9a35c')}
+function tableFront(){R(30,130,260,10,'#efe6d6');R(30,140,260,30,'#6a3f22');R(150,120,24,10,'#a0621f');R(152,116,20,6,'#c27a2a');R(146,126,32,4,'#ddd')}
+function hospital(){wallFloor('#cfdcdc','#9aaeae',120);R(140,0,4,20,'#888');R(120,20,44,8,'#ddd');R(110,130,110,6,'#bbb');R(116,136,3,30,'#888');R(212,136,3,30,'#888')}
+function bankBG(){wallFloor('#d6cfbf','#8a7f6a',125);for(let i=0;i<5;i++){const x=20+i*64;R(x,10,18,115,'#e8e2d4');R(x+4,10,1,115,'#cfc8b8');R(x+12,10,1,115,'#cfc8b8');R(x-3,8,24,5,'#cfc8b8')}}
+function pierBG(t){R(0,0,W,H,'#1d1a24');for(let i=0;i<5;i++)R(20+i*62,20,40,30,'#2c3348');R(0,118,W,6,'#3a2e2a');R(0,124,W,56,'#0f1a2a');for(let i=0;i<24;i++)R((i*29+t*10)%W,130+(i%6)*8,10,1,'#2a4a6a')}
+function mansion(){wallFloor('#1f2a24','#15100c',125);for(let i=0;i<W;i+=20)R(i,0,2,122,'#26332c');R(20,40,6,30,'#c9a35c');R(16,36,14,4,'#c9a35c');disc(23,32,2,'#ffcf5a')}
+function churchBG(t){R(0,0,W,H,'#3a3846');for(let y=0;y<H;y+=8)for(let x=(y/8%2)*8;x<W;x+=16)R(x,y,15,7,'#45434f');R(130,20,60,80,'#1a1a24');const cols=['#d0202f','#2b4fc4','#f2c23a','#2e9a5a'];for(let i=0;i<6;i++)for(let j=0;j<8;j++)R(132+i*10,22+j*10,8,8,cols[(i+j)%4]);R(0,140,W,40,'#2a2832')}
+function jazz(t){R(0,0,W,H,'#1d1028');R(0,120,W,60,'#2a1830');alpha(.10,()=>{for(let i=0;i<3;i++){c.fillStyle='#ffe0a0';c.beginPath();const x=60+i*100+Math.sin(t+i)*10;c.moveTo(x-4,0);c.lineTo(x+4,0);c.lineTo(x+30,120);c.lineTo(x-30,120);c.fill()}});for(let i=0;i<W;i+=24){disc(i+12,30,2,'#ffcf5a')}}
+function construction(t){sky('night',t);city('night',170,0,t);for(let i=0;i<5;i++){const x=10+i*70;R(x,20,4,160,'#9a4a1e');for(let y=30;y<180;y+=34)R(x-30,y,64,3,'#b8561f')}alpha(.12,()=>{c.fillStyle='#e8f0ff';c.beginPath();const a=Math.sin(t*.8)*.6;c.moveTo(160,180);c.lineTo(160+Math.sin(a-.1)*300,180-Math.cos(a-.1)*300);c.lineTo(160+Math.sin(a+.1)*300,180-Math.cos(a+.1)*300);c.fill()})}
+function alley(m,t){sky(m,t);R(0,0,90,H,'#4a2a26');R(230,0,90,H,'#4a2a26');for(let y=0;y<H;y+=6){R(0,y,90,1,'#3a201c');R(230,y,90,1,'#3a201c')}R(90,0,140,H,mix(SKIES[m][0],'#000000',.3));city(m,140,0,t);R(0,140,W,40,'#26222a');for(let y=20;y<120;y+=24){R(236,y,60,2,'#222');R(236,y,2,24,'#222')}R(110,128,40,20,'#2e5a3a')}
+function apt(m,t){wallFloor('#7a7560','#4a3e2e');for(let i=0;i<5;i++)R(10+i*60,30+(i%2)*20,10,6,'#6a6550');win(200,24,70,56,m,t);R(30,118,100,16,'#a8a29a');R(30,124,100,10,'#4a5a7a')}
+function tunnel(t){R(0,0,W,H,'#14141a');for(let i=0;i<8;i++){const x=((i*50-t*40)%400+400)%400-40;R(x,10,6,4,'#ffe8a0')}R(0,140,W,40,'#222');for(let i=0;i<20;i++)R(((i*20-t*80)%W+W)%W,150,10,2,'#555');R(0,158,W,2,'#777');R(0,166,W,2,'#777');R(0,30,W,6,'#3a3a44')}
+function pit(t){sky('night',t);R(0,110,W,70,'#2a2a30');for(let x=0;x<W;x+=8)R(x,100,1,20,'#777');R(0,100,W,1,'#777');R(80,130,160,50,'#c7a25a');R(76,126,168,4,'#555')}
+function park(t){sky('night',t);city('night',140,0,t);R(0,130,W,50,'#1f3a24');for(const x of[40,280]){R(x-3,70,6,70,'#3a2a1a');disc(x,64,22,'#1d4a2a');disc(x-10,74,14,'#245a32')}}
+function cafe(t){wallFloor('#7a5a3a','#4a3426');win(20,24,120,70,'day',t);R(170,118,60,6,'#3a2a1a');R(198,124,4,26,'#3a2a1a')}
+function police(t){wallFloor('#5a6a7a','#2e3540');R(20,20,90,60,'#cfd6dc');for(let y=22;y<80;y+=4)R(20,y,90,2,'#8a96a2');R(180,118,130,10,'#3a2e22');R(200,30,90,10,'#2e3540')}
+function stage(t){cityBG('day',150,0,t);R(0,150,W,30,'#555');R(60,118,200,12,'#2b4fc4');R(60,130,200,4,'#d0202f');R(20,24,280,12,'#d0202f')}
+
+// ============================================================ the trilogy
+const SCENES=[];let FILM=0;
+function S(lines,draw,o={}){SCENES.push({film:FILM,lines,draw,min:o.min||0})}
+function titleCard(name,yr,t,p,tint='#c8102e'){cityBG('night',170,t*8,t,[270,36]);fade(.6);
+ const k=ez(seg(p,0,.45));c.globalAlpha=.55;for(let i=0;i<9;i++){const a=i/8*Math.PI/2;ln(0,0,Math.cos(a)*420*k,Math.sin(a)*420*k,'#cfd8ff')}for(let r=40;r<400*k;r+=40){c.beginPath();for(let i=0;i<9;i++){const a=i/8*Math.PI/2;c.lineTo(Math.cos(a)*r,Math.sin(a)*r)}c.strokeStyle='#cfd8ff';c.stroke()}c.globalAlpha=1;
+ swing(L(-60,380,p),-30,110,Math.sin(t*1.6)*.7,CH.spidey,{s:1.4});
+ const a=seg(p,.15,.35);alpha(a,()=>{T(name,W/2,78,tint,name.length>10?16:20,'center','#1f3a9e');T(yr,W/2,104,'#fff',8)})}
+
+// ============================================================ the amazing duology
+Object.assign(SUITS,{
+ tasm:{head:'#c8102e',top:'#c8102e',side:'#1f3a9e',arm:'#c8102e',hand:'#c8102e',legs:'#1f3a9e',shoe:'#c8102e',eye:'#ffe08a',logo:'#111',line:'#3a0610',mask:1,tasm:1},
+ tasm2:{head:'#d0142e',top:'#d0142e',side:'#2a4ac0',arm:'#d0142e',hand:'#d0142e',legs:'#2a4ac0',shoe:'#d0142e',eye:'#ffffff',logo:'#111',line:'#3a0610',mask:1,tasm:1},
+ lizard:{head:'#5a8a3a',top:'#e8e8e0',side:'#5a8a3a',arm:'#5a8a3a',hand:'#3a6a2a',legs:'#5a8a3a',shoe:'#3a6a2a',mask:1,liz:1},
+ electro:{head:'#5ab0ff',top:'#1a2a5a',side:'#5ab0ff',arm:'#5ab0ff',hand:'#bfe6ff',legs:'#1a2a5a',shoe:'#111',mask:1,elec:1},
+ gob2:{head:'#7a8a5a',top:'#3a3a32',side:'#5a5a4a',arm:'#3a3a32',hand:'#7a8a5a',legs:'#3a3a32',shoe:'#222',eye:'#ffd23f',mask:1,gob:1},
+});
+Object.assign(CH,{
+ amz:{suit:'tasm'},amz2:{suit:'tasm2'},kidamz:{suit:'tasm2',s:.6},
+ lizard:{suit:'lizard',s:1.5},electro:{suit:'electro',s:1.1},gob2:{suit:'gob2'},
+ pa:{hair:'#3a2414',hs:'spiky',top:'#4a5a6a',legs:'#2a3a5a',shoe:'#eeeeee'},
+ paY:{hair:'#3a2414',hs:'spiky',top:'#c0a060',legs:'#3a4a6a',s:.6},
+ gwen:{hair:'#f2d877',hs:'long',top:'#2a2a3a',legs:'#111',dress:'#3a3a4a',shoe:'#3a2414',band:1},
+ gwenGrad:{hair:'#f2d877',hs:'long',top:'#1a2a6a',legs:'#1a2a6a',dress:'#1a2a6a',shoe:'#111'},
+ ben2:{hair:'#d8d8d8',hs:'short',top:'#6a5a4a',legs:'#3a3a40'},
+ may2:{hair:'#c8b8a8',hs:'bun',top:'#7a8a9a',legs:'#7a8a9a',dress:'#7a8a9a'},
+ connors:{hair:'#5a4a3a',hs:'short',top:'#eef1f4',coat:'#eef1f4',legs:'#3a3a44',onearm:1},
+ stacy:{hair:'#bbb',hs:'short',top:'#1f2f5a',legs:'#1f2f5a',stache:1},
+ richard:{hair:'#4a3a2a',hs:'short',top:'#6a6a5a',legs:'#3a3a40',gl:1},
+ mary:{hair:'#8a5a3a',hs:'long',top:'#8a6a8a',legs:'#333',dress:'#8a6a8a'},
+ max:{hair:'#7a5a3a',hs:'slick',top:'#5a6a4a',legs:'#5a4a3a',gl:1},
+ harry2:{hair:'#c9a46a',hs:'slick',top:'#2a2a2a',legs:'#2a2a2a'},
+ norman2:{hair:'#888',hs:'bald',top:'#3a3a44',legs:'#2a2a30'},
+ teacher:{hair:'#777',hs:'short',top:'#6a5a4a',legs:'#3a3a3a',gl:1},
+ libr:{hair:'#ddd',hs:'bald',top:'#4a5a7a',legs:'#333',gl:1,stache:1},
+ worker:{hair:'#333',hs:'cap',top:'#e07a2a',legs:'#3a4a6a'},
+ kidA:{hair:'#5a3a1a',hs:'short',top:'#d9a03a',legs:'#3a4a7a',s:.6},
+});
+// person() patches: Lizard snout, Electro glow face, Amazing-suit lenses, one-armed Connors, Gwen's headband
+const _person=person;
+function amazingHead(x,y,ch,o){}
+function lizTail(x,y,s,f,t){c.save();c.translate(x,y);c.scale(s*f,s);for(let i=0;i<10;i++)R(-6-i*2,-8+Math.sin(t*4+i*.5)*1.5+i*.5,3,2,'#5a8a3a');c.restore()}
+function elecAura(x,y,s,t){const r=rng((t*14|0)+3);c.strokeStyle='#bfe6ff';c.lineWidth=1;for(let k=0;k<4;k++){c.beginPath();let px=x,py=y-14*s;c.moveTo(px,py);for(let i=0;i<5;i++){px+=(r()-.5)*16;py+=(r()-.5)*16;c.lineTo(px,py)}c.stroke()}alpha(.18,()=>disc(x,y-14*s,16*s,'#5ab0ff'))}
+function bolt(x1,y1,x2,y2,t){const r=rng((t*20|0)+7);c.strokeStyle='#e8f6ff';c.lineWidth=2;c.beginPath();c.moveTo(x1,y1);for(let i=1;i<8;i++){c.lineTo(L(x1,x2,i/8)+(r()-.5)*10,L(y1,y2,i/8)+(r()-.5)*10)}c.lineTo(x2,y2);c.stroke();c.strokeStyle='#5ab0ff';c.lineWidth=1;c.stroke()}
+function rhino(x,y,s,f,t){c.save();c.translate(Math.round(x),Math.round(y));c.scale(s*f,s);const g='#6a6e78',d='#3a3e48',st=Math.round(Math.sin(t*6)*2);R(-14,-12+st,8,12-st,d);R(6,-12-st,8,12+st,d);R(-18,-40,36,30,g);R(-14,-36,28,8,d);R(-24,-38,8,22,g);R(16,-38,8,22,g);R(4,-56,18,16,g);R(18,-52,10,6,g);R(26,-62,4,12,'#d8d0c0');R(28,-66,2,6,'#d8d0c0');R(14,-50,3,3,'#ff3a3a');c.restore()}
+function oscorp(t){labBG(t,'#1c2a2a');R(110,8,100,16,'#0d1a1a');T('OSCORP',160,16,'#3dff9a',8,'center',null)}
+function trainIn(t){wallFloor('#8a8e96','#4a4e56',125);for(let i=0;i<5;i++){R(10+i*64,26,50,40,'#1a1a2a');for(let k=0;k<3;k++)R(10+i*64+((k*20-t*160)%50+50)%50,40+k*6,8,2,'#ffe8a0')}for(let i=0;i<8;i++)R(i*42,8,2,30,'#c8c8c8');R(0,8,W,2,'#c8c8c8')}
+function sewer(t){R(0,0,W,H,'#1a2218');for(let i=0;i<4;i++){c.strokeStyle='#2c3a28';c.lineWidth=6;c.beginPath();c.arc(160,140,70+i*40,Math.PI,0);c.stroke()}R(0,140,W,40,'#2a3a2a');for(let i=0;i<10;i++)R(((i*40+t*10)%W),150+(i%3)*8,14,1,'#4a6a4a');c.globalAlpha=.6;for(let i=0;i<9;i++)ln(160,40,i*40,0,'#dde');for(let i=0;i<9;i++)ln(160,40,i*40,140,'#dde');c.globalAlpha=1}
+function library(t){wallFloor('#6a4a2e','#3a2a1a');for(let s=0;s<3;s++)for(let r=0;r<4;r++)for(let b=0;b<14;b++)R(10+s*104+b*6,20+r*24,5,18,['#8a2a2a','#2a4a8a','#3a6a3a','#8a7a2a','#5a3a6a'][(b+r+s)%5])}
+function cranes(t){sky('night',t);disc(270,30,9,'#f3eccc');city('night',170,0,t);for(let i=0;i<6;i++){const x=20+i*56,h=60+(i%3)*14;R(x,170-h-40,3,h+40,'#d8a020');R(x-20,170-h-40,60,3,'#d8a020');R(x-20,170-h-37,1,10,'#888');R(x+38,170-h-38,6,6,'#555')}}
+function gears(t){R(0,0,W,H,'#2a2018');const G=[[60,50,30,1],[150,90,44,-1],[260,60,34,1],[220,150,26,-1],[40,150,22,1]];for(const[x,y,r,d]of G){disc(x,y,r,'#7a5a2a');disc(x,y,r-6,'#5a4020');disc(x,y,4,'#3a2a14');for(let k=0;k<12;k++){const a=t*d*.5+k*Math.PI/6;R(x+Math.cos(a)*(r+2)-2,y+Math.sin(a)*(r+2)-2,5,5,'#7a5a2a')}}alpha(.4,()=>{c.fillStyle='#fff6c0';c.beginPath();c.arc(290,90,40,0,7);c.fill()})}
+function plant(t){sky('night',t);R(0,140,W,40,'#2a2a30');for(let i=0;i<4;i++){const x=30+i*80;R(x,50,4,90,'#8a8a92');R(x-16,60,36,3,'#8a8a92');R(x-12,74,28,3,'#8a8a92');ln(x-16,62,x+64,62,'#555')}for(let i=0;i<5;i++)R(20+i*60,120,30,20,'#4a4a52')}
+function times(t){sky('night',t);R(0,0,W,140,'#151525');const cols=['#ff2a6a','#2ab0ff','#ffe02a','#2aff8a','#ff8a2a'];for(let i=0;i<8;i++){const x=(i%4)*80+6,y=i<4?10:66;R(x,y,68,48,cols[(i+((t*2)|0))%5]);R(x+4,y+4,60,40,'#000000');R(x+6,y+6,56,36,cols[(i+1+((t*3)|0))%5]+'')}R(0,140,W,40,'#2a2a30')}
+function planeIn(t){c.save();shake(1,t);R(0,0,W,H,'#d8d4c8');R(0,0,W,30,'#c8c4b8');for(let i=0;i<6;i++){R(20+i*52,40,14,10,'#9fd3f0')}R(0,125,W,55,'#5a5a6a');for(let i=0;i<6;i++){R(10+i*52,96,34,30,'#2a3a6a')}c.restore()}
+function tank(t){R(0,0,W,H,'#0c1418');R(80,40,160,110,'#0a3a4a');alpha(.5,()=>R(80,40,160,110,'#2a8aaa'));for(let i=0;i<4;i++){const x=100+((i*40+t*20)%140),y=70+i*18;R(x,y,20,3,'#4a4a3a');R(x+20,y,3,3,'#ffe066')}R(70,36,180,4,'#666')}
+function amzTitle(t,p,line2,eyes){cityBG('night',170,t*8,t,[270,36]);fade(.55);const k=ez(seg(p,0,.45));c.globalAlpha=.5;for(let i=0;i<9;i++){const a=i/8*Math.PI/2;ln(W,0,W-Math.cos(a)*420*k,Math.sin(a)*420*k,'#cfd8ff')}c.globalAlpha=1;swing(L(-60,380,p),-30,110,Math.sin(t*1.6)*.7,eyes?CH.amz2:CH.amz,{s:1.4});alpha(seg(p,.15,.35),()=>{T('THE AMAZING',W/2,62,'#ffffff',8,'center','#1f3a9e');T('SPIDER-MAN'+(line2?' 2':''),W/2,84,'#d0142e',16,'center','#1f3a9e');T(line2?'(2014)':'(2012)',W/2,108,'#fff',8)})}
+
+// ------------------------------------------------ FILM I : THE AMAZING SPIDER-MAN (2012)
+FILM=0;
+S(['[the Amazing Spider-Man duology, from memory]','[five years after the last Spider-Man. yes, we are doing the origin story again.]','[the spider bite. the uncle. you know the drill. new guy, though.]'],(t,p)=>{R(0,0,W,H,'#000');alpha(seg(p,0,.2)*(1-seg(p,.85,1)),()=>{T('A PIXEL PICTURES',W/2,74,'#e8e8e8',8);T('PRESENTATION',W/2,90,'#e8e8e8',8)});const y=L(0,58,ez(p));ln(250,0,250,y,'#aaa');spiderbug(250,y)},{min:8});
+S(['[THE THEME. a different one. still heroic.]','[the logo is darker and the suit has basketball texture. it\'s 2012.]'],(t,p)=>amzTitle(t,p,0),{min:8});
+S(['[little Peter plays hide and seek and finds his dad\'s study ransacked]','RICHARD PARKER: We have to go. Now.','[his parents leave him with Uncle Ben and Aunt May, then vanish. mysteriously.]','[the mystery will be very important for about a movie and a half]'],(t,p)=>{room('night',t);for(let i=0;i<8;i++)R(120+(i*23)%80,110+(i*11)%20,10,4,'#eeeeee');if(p<.4)person(150,166,CH.paY,{pose:'cry'});else{person(70,166,CH.richard,{f:1});person(100,166,CH.mary);person(170,166,CH.paY,{f:-1});person(220,166,CH.ben2,{f:-1});person(250,166,CH.may2,{f:-1})}if(p>.7)fade(.3*seg(p,.7,1));R(80,150,14,10,'#5a3a1a')});
+S(['[years later: Peter. skateboard. hoodie. camera. extremely 2012.]','[Flash dangles a kid over a plate of spaghetti. Peter tells him to put the kid down.]','[Peter gets beaten up for it. Gwen Stacy notices. it\'s working.]'],(t,p)=>{hall();if(p<.3){person(L(-20,140,seg(p,0,.3)),166,CH.pa,{pose:'crouch'});R(L(-34,126,seg(p,0,.3)),164,28,3,'#7a4a2a')}else{person(130,166,CH.pa,{pose:p>.6?'fall':'point',rot:p>.6?-.6:0});person(200,166,CH.flash,{f:-1,pose:p>.55?'punch':'hold'});if(p<.6)person(190,144,CH.kidA,{rot:Math.PI});person(50,166,CH.gwen,{pose:p>.7?'cry':'stand'});if(p>.58&&p<.68)sfx('POW',160,90)}});
+S(['[a flood in the basement uncovers Dad\'s old briefcase]','UNCLE BEN: Your father worked with a man named Curt Connors. At Oscorp.','[inside: the "decay rate algorithm." it sounds made up. it is.]'],(t,p)=>{wallFloor('#4a4440','#2a2420');R(30,20,30,4,'#888');for(let i=0;i<6;i++)R(42,24+((t*40+i*10)%100),2,4,'#6ab0e0');R(0,160,W,20,'#3a5a7a');alpha(.5,()=>R(0,152,W,8,'#6a9aca'));R(140,140,40,22,'#5a3a1a');R(156,136,8,4,'#3a2a1a');person(100,166,CH.pa,{pose:'crouch'});person(220,166,CH.ben2,{f:-1,pose:p>.3&&p<.7?'point':'stand'});if(p>.7){R(130,80,60,40,'#f4f0e0');for(let i=0;i<4;i++)R(136,88+i*7,48,1,'#333')}});
+S(['[Peter sneaks into Oscorp with a stolen intern badge]','GWEN: You\'re not Rodrigo Guevara.','[he wanders into a room of spiders spinning super-cable]','[a spider bites him on the neck. the NECK, this time.]'],(t,p)=>{oscorp(t);if(p<.5){person(110,166,CH.pa);person(200,166,CH.gwen,{f:-1,pose:p>.2?'point':'stand'});R(116,138,6,8,'#fff')}else{R(0,0,W,H,'#0d1414');c.globalAlpha=.5;for(let i=0;i<20;i++)ln((i*37)%W,0,(i*53)%W,H,'#cfe');c.globalAlpha=1;person(160,166,CH.pa,{pose:p>.85?'cry':'stand'});const sy=L(0,118,seg(p,.6,.82));ln(158,0,158,sy,'#ccc');if(p<.88)spiderbug(158,sy);if(p>.82&&p<.95)sfx('OW!',160,100,'#ff5a5a')}});
+S(['[subway ride home. new powers. his hands stick to everything.]','[he accidentally fights an entire train car. apologizing the whole time.]','[at home: he destroys the faucet, the door, his toothbrush and the alarm clock]'],(t,p)=>{if(p<.6){trainIn(t);person(160,166,CH.pa,{pose:(t*3|0)%2?'punch':'up',f:(t*2|0)%2?1:-1});for(let i=0;i<3;i++){const k=seg(p,.2+i*.12,.32+i*.12);person(L(160,i%2?320:0,k),166-Math.sin(k*Math.PI)*50,i%2?CH.thief:CH.flash,{rot:k*6})}person(10+((t*4)|0)%2,46,CH.pa,{rot:Math.PI,s:1.2})}else{wallFloor('#d8e0e4','#8a9aa0');R(140,90,40,30,'#eeeeee');R(156,82,8,10,'#bbb');const k=seg(p,.6,1);for(let i=0;i<10;i++)R(160+Math.cos(i)*k*80,90+Math.sin(i*1.7)*k*40-k*k*30,3,2,'#6ab0e0');person(110,166,CH.pa,{pose:'hold'});sfx('CRACK',200,60,'#fff',8)}});
+S(['CURT CONNORS: I want to create a world without weakness.','[Peter casually solves Dad\'s equation at the man\'s house]','[a three-legged mouse grows its leg back. totally normal sign.]'],(t,p)=>{oscorp(t);person(100,166,CH.pa);person(210,166,CH.connors,{f:-1,pose:p<.35?'point':'stand'});R(130,96,60,30,'#0d1a1a');T('E=?',160,110,'#3dff9a',6,'center',null);if(p>.6){R(150,140,24,12,'#9fd3f0');R(158,146,6,3,'#ddd');R(158+((t*20|0)%3),149,1,2,'#ddd')}});
+S(['[Peter forgets to pick up Aunt May. huge argument.]','UNCLE BEN: If you can do good things for people, you have an obligation to do them.','[Peter storms out to a corner store. the clerk won\'t spot him two cents.]','[a robber knocks out the clerk. Peter lets him walk.]','[Uncle Ben tries to stop the robber himself. it goes badly.]'],(t,p)=>{if(p<.4){apt('night',t);person(110,166,CH.pa,{pose:p>.1&&p<.3?'point':'stand'});person(200,166,CH.ben2,{f:-1,pose:'point'})}else if(p<.75){wallFloor('#d8d0b8','#7a7060');for(let i=0;i<4;i++)for(let j=0;j<10;j++)R(10+j*12,24+i*20,10,14,['#c03030','#3060c0','#e0b030','#30a050'][(i+j)%4]);R(180,110,90,20,'#5a4a3a');person(240,110,CH.worker,{f:-1});person(150,166,CH.pa,{pose:'hold'});if(p>.55)person(L(260,-20,seg(p,.55,.75)),166,CH.thief,{f:-1,pose:'run',ph:t*14})}else{cityBG('night',140,0,t,[50,30]);street(140);person(150,168,CH.ben2,{rot:-Math.PI/2,s:1.8});alpha(.12,()=>R(0,0,W,H,(t*4|0)%2?'#ff2a2a':'#2a6aff'))}});
+S(['[Peter hunts every blond guy with a star tattoo in New York]','[a wrestling poster inspires the mask. that\'s canon.]','[he builds web-shooters from Oscorp cable, designs a suit, and practices on a skateboard]'],(t,p)=>{if(p<.35){alley('night',t);person(130,166,CH.pa,{pose:'punch'});person(190,166,CH.thief,{f:-1,rot:-.4});R(184,140,2,2,'#5ab0ff')}else if(p<.65){room('night',t);R(170,24,40,30,'#c8102e');T('LUCHA',190,36,'#ffe066',5,'center',null);person(120,166,CH.pa,{pose:'point'})}else{cityBG('night',150,t*20,t);roof(150);person(L(40,280,seg(p,.65,1)),146,CH.amz,{pose:'crouch'});R(L(26,266,seg(p,.65,1)),144,28,3,'#7a4a2a')}});
+S(['CAR THIEF: What are you, a cop?','SPIDER-MAN: You found my weakness. It\'s small knives.','[he webs the thief\'s mouth shut. very rude. extremely funny.]','CAR THIEF: Mmmmf!'],(t,p)=>{sky('night',t);city('night',140,0,t);street(140);car(240,166,'#3a5a7a');person(190,166,CH.thief,{f:-1,pose:p<.5?'point':'stand'});if(p>.5){R(188,138,6,3,'#eef2ff');ln(160,140,190,140)}person(130,166,CH.amz,{pose:p>.45&&p<.6?'thwip':p<.3?'stand':'cry'})});
+S(['CAPTAIN STACY: Spider-Man is a masked vigilante.','PETER: Or he\'s doing what the police can\'t.','[dinner gets very tense. the potatoes remain neutral.]','[later, on the balcony, Peter tells Gwen the truth by sticking to the wall]'],(t,p)=>{if(p<.65){dining(t);person(60,150,CH.stacy);person(110,150,CH.gwen);person(160,150,CH.pa,{f:-1,pose:p>.2&&p<.45?'point':'stand'});person(220,150,CH.mary,{f:-1});tableFront()}else{cityBG('night',150,0,t,[60,30]);R(60,120,200,6,'#8a8a92');R(60,100,200,2,'#8a8a92');person(120,120,CH.gwen);person(220,70,CH.pa,{rot:-Math.PI/2});if(p>.85)heart(170,60)}});
+S(['[Oscorp wants Connors to test on veterans. he tests on himself instead.]','[his arm grows back. so does a tail. and scales. and teeth.]','[the Lizard throws cars off the Williamsburg Bridge]','[Spidey saves a kid from a burning car and lends him the mask: "it\'ll make you strong"]'],(t,p)=>{if(p<.4){oscorp(t);const k=seg(p,.15,.4);person(160,166,k<.5?CH.connors:CH.lizard,{pose:'up'});if(k>.5)lizTail(160,166,1.5,1,t);if(k>.3&&k<.6)fade(.6,'#4aff6a')}else{bridgeBG(t);for(let i=0;i<4;i++)car(30+i*70,118,['#3a6ac0','#e8b030','#3aa060','#9a9aa2'][i]);person(240,118,CH.lizard,{f:-1,pose:'up'});lizTail(240,118,1.5,-1,t);if(p>.7){ln(140,0,140,90);c.save();c.translate(140,110);c.rotate(.3);car(0,0,'#8a2a2a');c.restore();fire(126,104,20,t,10);person(120,112,CH.amz,{pose:'web',half:1});person(150,108,CH.kidA,{s:1.2})}}});
+S(['[Spidey webs the sewers and waits like a spider. while playing a phone game.]','[the Lizard attacks the high school. fight in the library.]','[the librarian listens to his headphones the whole time. notices nothing.]'],(t,p)=>{if(p<.35){sewer(t);person(160,52,CH.amz,{rot:Math.PI,s:1.4});R(156,56,6,8,'#222')}else{library(t);const k=(t*2|0)%2;person(120,166,CH.amz,{pose:k?'punch':'web'});person(200,166,CH.lizard,{f:-1,pose:k?'stand':'punch'});lizTail(200,166,1.5,-1,t);for(let i=0;i<6;i++)R(140+((t*80+i*30)%80),80+i*10,5,7,['#8a2a2a','#2a4a8a','#3a6a3a'][i%3]);person(40,166,CH.libr,{pose:'sit'});R(36,123,10,2,'#111');}});
+S(['[the Lizard climbs Oscorp tower with a gas bomb to turn all of New York into lizards]','[Spidey gets shot in the leg. he can\'t swing that far anymore.]','[the dad of the kid he saved lines up every crane across Manhattan]','[he swings crane to crane. best scene in the movie. you are allowed to cry.]'],(t,p)=>{cranes(t);const k=seg(p,.5,1);const ax=20+Math.floor(k*5.99)*56;if(p>.5)swing(ax,170-60-(Math.floor(k*5.99)%3)*14-40,60,Math.sin(t*3)*.6,CH.amz,{s:1.3,half:0});else{person(160,166,CH.amz,{pose:'crouch',s:1.5});if(p>.25)R(150,150,4,2,'#c22')}person(56,90,CH.worker,{s:.8,pose:'up'})});
+S(['[rooftop battle. Gwen has made the antidote. Captain Stacy shows up to help.]','[the antidote cloud blasts out. the Lizard turns back into Connors.]','CAPTAIN STACY: Promise me. Leave Gwen out of this.','[Captain Stacy doesn\'t make it]'],(t,p)=>{cityBG('night',150,0,t,[60,30]);roof(150);R(200,40,24,110,'#4a5a5a');if(p<.4){person(120,166,CH.amz,{pose:'punch'});person(190,166,CH.lizard,{f:-1,pose:'punch'});lizTail(190,166,1.5,-1,t);person(260,166,CH.stacy,{f:-1,pose:'point'})}else{if(p<.55)alpha(.6*(1-seg(p,.4,.55)),()=>disc(212,40,60,'#9aff9a'));person(190,170,CH.connors,{rot:-Math.PI/2});person(130,170,CH.stacy,{rot:-Math.PI/2});person(160,166,CH.amz,{f:-1,pose:'crouch',unmask:CH.pa})}});
+S(['[Peter skips the funeral and breaks up with Gwen to keep his promise]','TEACHER: Don\'t make promises you can\'t keep.','PETER: But those are the best kind.','[mid-credits: a man in the shadows asks Connors if he told the boy about his father. ooOOoo.]'],(t,p)=>{if(p<.75){wallFloor('#d8d0b8','#7a6a50');R(40,20,240,50,'#2a3a2a');T('PROMISES',160,40,'#e8e8e8',8,'center',null);person(70,166,CH.teacher,{pose:'point'});for(let i=0;i<4;i++)person(140+i*44,166,i===1?CH.gwen:i===2?CH.pa:CH.kidA,{s:i===1||i===2?2:2,pose:'sit'});if(p>.5)heart(180,96)}else{R(0,0,W,H,'#0a0a10');person(110,166,CH.connors,{pose:'sit'});for(let x=60;x<170;x+=12)R(x,60,2,110,'#555');alpha(.6,()=>person(240,166,{hair:'#111',hs:'slick',top:'#111',legs:'#111'},{f:-1}));if(p>.95)fade(1)}});
+
+// ------------------------------------------------ FILM II : THE AMAZING SPIDER-MAN 2 (2014)
+FILM=1;
+S(['[Peter\'s dad uploads a secret video from an airplane bathroom]','[an assassin attacks. the plane goes down. that\'s where his parents went.]'],(t,p)=>{if(p<.08)amzTitle(t,p,1,1);planeIn(t);person(120,166,CH.richard,{pose:'punch'});person(190,166,{hair:'#111',hs:'slick',top:'#2a2a2a',legs:'#2a2a2a'},{f:-1,pose:'punch'});if(p>.6){alpha(seg(p,.6,.9),()=>R(0,0,W,H,'#000'))}},{min:6});
+S(['[THE THEME. again. with more lens flare.]','[the new suit has huge white eyes. it is the most comic-accurate suit ever. people cheer.]'],(t,p)=>amzTitle(t,p,1,1),{min:8});
+S(['[a stolen Oscorp truck full of plutonium tears through Manhattan]','ALEKSEI: Out of my way!','[Spidey stops the truck, humming his own theme song]','[he saves Max Dillon, an Oscorp electrician nobody ever notices]','SPIDER-MAN: You\'re my eyes and ears out here, buddy.','[Max: now extremely obsessed]'],(t,p)=>{cityBG('day',150,t*60,t);street(150,t*60);R(150,120,60,32,'#3a3a3a');R(206,128,16,24,'#3a3a3a');T('OSCORP',180,134,'#3dff9a',5,'center',null);disc(165,154,6,'#111');disc(205,154,6,'#111');if(p<.5)swing(L(40,120,p*2),-20,110,Math.sin(t*2)*.5,CH.amz2,{s:1.3});else{person(110,166,CH.amz2,{pose:'point'});person(60,166,CH.max,{pose:p>.85?'up':'stand'});if(p>.85)heart(60,100)}});
+S(['[late for graduation. again. Gwen gives the valedictorian speech.]','[he arrives just in time. suit under the gown. kisses her on stage.]','[but he keeps seeing Captain Stacy\'s ghost. they break up. again.]'],(t,p)=>{sky('day',t);R(0,110,W,70,'#4a8a3a');R(100,90,120,30,'#e8e0d0');person(160,96,CH.gwenGrad,{pose:p<.3?'point':'stand'});for(let r=0;r<2;r++)for(let i=0;i<9;i++)person(20+i*36,156+r*14,CH.gwenGrad,{s:1,pose:(t*2+i|0)%3?'stand':'up'});if(p>.3&&p<.65){person(190,96,{hair:'#3a2414',hs:'spiky',top:'#1a2a6a',legs:'#1a2a6a',dress:'#1a2a6a'});heart(175,60)}if(p>.65)alpha(.4,()=>person(280,140,CH.stacy,{f:-1}))});
+S(['[Harry Osborn comes home. Norman is dying of a hereditary disease.]','NORMAN: You\'ll get it too, Harry. Same age I did.','[Harry learns Spider-Man\'s blood might cure him. what could go wrong.]'],(t,p)=>{wallFloor('#2a2f3a','#1a1d24');win(20,20,280,70,'day',t);R(180,120,100,16,'#e8e8e8');person(230,128,CH.norman2,{rot:-Math.PI/2});person(130,166,CH.harry2,{pose:p>.6?'cry':'stand'});if(p>.8)R(140,140,4,8,'#ff3a3a')});
+S(['[Max, alone on his birthday, falls into a tank of electric eels]','[he becomes Electro. naturally. that\'s just what eels do.]'],(t,p)=>{tank(t);if(p<.4)person(L(40,160,seg(p,0,.3)),36,CH.max,{rot:seg(p,.2,.4)*3});else{const k=seg(p,.4,.8);c.save();c.beginPath();c.rect(80,40,160,110);c.clip();person(160,140,k<.5?CH.max:CH.electro,{pose:'up'});c.restore();for(let i=0;i<4;i++)bolt(160,100,100+i*40,40,t+i)}if(p>.45&&p<.6)fade(.7,'#bfe6ff')});
+S(['ELECTRO: Everybody sees me now!','[he takes over every screen in Times Square]','SPIDER-MAN: Hey, Max!','[a cop panics and shoots. the dubstep begins. you can\'t hear it. it is still dubstep.]','[Spidey shorts him out with fire hoses]'],(t,p)=>{c.save();if(p>.45&&p<.8)shake(1,t);times(t);crowd(176,18,61,t,2,1.2);elecAura(200,166,2.2,t);person(200,166,CH.electro,{f:-1,pose:'up'});person(110,166,CH.amz2,{pose:p>.3&&p<.5?'point':'web'});if(p>.45&&p<.8)for(let i=0;i<3;i++)bolt(200,130,40+i*60,0,t+i);if(p>.8)alpha(.6,()=>{for(let i=0;i<30;i++)R(100+(i*7)%90,120+(i*13)%40,2,2,'#6ab0e0')});c.restore()});
+S(['[Peter finds his dad\'s secret lab, hidden in an abandoned subway station]','RICHARD PARKER (VIDEO): I used my own DNA in the spiders. Only my son could survive the bite.','[so the spider powers were hereditary. sure. great.]'],(t,p)=>{tunnel(0);R(60,40,200,90,'#2a2a3a');R(100,50,120,70,'#0a1a2a');c.save();c.beginPath();c.rect(100,50,120,70);c.clip();alpha(.8,()=>person(160,120,CH.richard,{s:2.2}));c.restore();R(100,50,120,70,'#5ab0ff22');person(60,166,CH.pa,{pose:p>.6?'cry':'stand'})});
+S(['GWEN: I got into Oxford. England.','PETER: Then I\'ll go to England with you.','[they are happy for roughly four minutes]'],(t,p)=>{cityBG('dusk',150,0,t,[260,50]);roof(150);person(140,166,CH.pa,{pose:p>.4?'hold':'stand'});person(180,166,CH.gwen,{f:-1});if(p>.4)heart(160,100-((t*10)%20))});
+S(['[Harry gets fired from his own company]','[he breaks Electro out of the asylum. they team up.]','[he injects the spider venom and becomes the Green Goblin, but crunchier]'],(t,p)=>{oscorp(t);if(p<.6){person(110,166,CH.harry2,{pose:'point'});elecAura(220,166,2.2,t);person(220,166,CH.electro,{f:-1})}else{const k=seg(p,.6,.9);person(160,166,k<.5?CH.harry2:CH.gob2,{pose:'up'});if(k>.3&&k<.6)fade(.5,'#9aff6a');glider(200,120,1,t)}});
+S(['[Electro shuts down the entire city\'s power grid]','GWEN: Magnetize the web shooters!','[they overload Electro. he explodes into a sky full of light.]'],(t,p)=>{plant(t);elecAura(220,140,2.2,t);if(p<.75)person(220,140,CH.electro,{f:-1,pose:'up'});person(100,166,CH.amz2,{pose:'web'});person(60,166,CH.gwen,{pose:'point'});if(p>.4&&p<.75)bolt(110,140,220,110,t);if(p>.7){const k=seg(p,.7,1);for(let i=0;i<40;i++){const a=i*.157;R(220+Math.cos(a)*k*200,110+Math.sin(a)*k*200,2,2,'#bfe6ff')}fade((1-k)*.8,'#e8f6ff')}});
+S(['[the Goblin arrives, realizes Spider-Man is Peter, and grabs Gwen]','[a battle inside a giant clock tower. gears everywhere.]','[Gwen falls. a web shoots down after her.]','[it reaches her. a moment too late.]'],(t,p)=>{gears(t);if(p<.6){person(110,120,CH.amz2,{pose:(t*3|0)%2?'punch':'web'});person(200,120,CH.gob2,{f:-1,pose:'punch'});glider(200,121,-1,t);person(240,120,CH.gwen,{f:-1})}else{const k=seg(p,.6,.85);person(160,L(30,140,k),CH.gwen,{rot:Math.PI*k*.6});ln(160,0,160,L(0,110,seg(p,.62,.85)),'#eef2ff');if(p>.85){fade(seg(p,.85,1)*.9)}}});
+S(['[Peter visits her grave every day. the seasons change.]','[he stops being Spider-Man for five months]'],(t,p)=>{graves();const sn=p>.5;if(sn)for(let i=0;i<40;i++)R((i*37+t*10)%W,(i*23+t*30)%H,1,1,'#fff');person(140,166,CH.pa,{pose:'cry'});R(180,120,16,22,'#8c8f96');R(182,118,12,2,'#8c8f96');alpha(.6,()=>T(['SPRING','SUMMER','FALL','WINTER'][Math.min(3,Math.floor(p*4))],260,30,'#fff',6))});
+S(['[a guy in a giant robot rhino suit attacks the city]','[a little kid in a Spider-Man costume stands in front of it]','[Spider-Man swings back in. Gwen\'s speech plays in his head. hope.]','[cut to black. there are no more Amazing movies after this one.]'],(t,p)=>{cityBG('day',150,0,t);street(150);rhino(230,166,1.3,-1,t);person(150,166,CH.kidamz,{pose:'point'});if(p>.5){const k=seg(p,.5,.75);swing(L(-40,120,k),-20,110,Math.sin(t*2)*.4,CH.amz2,{s:1.4})}if(p>.8)fade(seg(p,.8,.9))});
+S(['[...until years later, he shows up in a different movie and catches someone who is falling]','[healing. pure healing.]','[thanks for watching]'],(t,p)=>{R(0,0,W,H,'#000');const cr=['THE END','','THE AMAZING SPIDER-MAN (2012)','THE AMAZING SPIDER-MAN 2 (2014)','RETOLD FROM MEMORY','','PETER PARKER ........ SKATEBOARD','GWEN STACY .......... THE BEST ONE','THE LIZARD .......... HAS A TAIL','ELECTRO ............. DUBSTEP','THE CRANE GUYS ...... HEROES','THE LIBRARIAN ....... HEADPHONES','THE RHINO ........... 30 SECONDS','PETER\'S DAD ......... MYSTERY (SOLVED?)','','UNOFFICIAL FAN PARODY.','NOT AFFILIATED WITH SONY OR MARVEL.'];const y0=L(190,-cr.length*12+90,p);cr.forEach((s,i)=>T(s,W/2,y0+i*12,i===0?'#d0142e':'#e8e8e8',i===0?12:6))},{min:14});
+
+// ============================================================ timeline
+const TARGET=420;
+const weight=s=>1.6+s.length/19;
+let raw=0;for(const sc of SCENES){sc.w=sc.lines.map(weight);sc.raw=Math.max(sc.min,sc.w.reduce((a,b)=>a+b,0));raw+=sc.raw}
+let acc=0;const K=TARGET/raw;for(const sc of SCENES){sc.start=acc;sc.dur=sc.raw*K;acc+=sc.dur;const tot=sc.w.reduce((a,b)=>a+b,0),pad=(sc.raw-tot)/2*K;let a2=sc.start+Math.max(0,pad);sc.cues=sc.w.map(w=>{const s=a2;a2+=w*K;return s})}
+const TOTAL=acc;
+const FILMS=[{name:'THE AMAZING SPIDER-MAN',yr:'2012',blurb:'Skateboard. Lizard. Cranes.'},{name:'THE AMAZING SPIDER-MAN 2',yr:'2014',blurb:'Electro. Goblin. The clock tower.'}];
+FILMS.forEach((f,i)=>{f.start=SCENES.find(s=>s.film===i).start});
+
+// ============================================================ player
+const $=id=>document.getElementById(id);
+const subs=$('subs'),scrub=$('scrub'),timeEl=$('time'),playBtn=$('play'),startBtn=$('start'),nowEl=$('now');
+scrub.max=TOTAL.toFixed(1);
+let time=0,playing=false,started=false,last=0,lastSub=null,lastFilm=-1;
+const fmt=s=>{s=Math.max(0,Math.round(s));return String(s/60|0).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+$('runtime').textContent='Runtime '+fmt(TOTAL)+' · subtitles on · sound off forever';
+const esc=s=>s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]);
+function fmtSub(s){if(!s)return'';if(s[0]==='[')return'<span class="cue">'+esc(s)+'</span>';const m=s.match(/^([A-Z][A-Z0-9 .'()\-]*?):\s(.*)$/);return m?'<span class="spk">'+esc(m[1])+':</span> '+esc(m[2]):esc(s)}
+function locate(tm){let i=0;while(i<SCENES.length-1&&tm>=SCENES[i+1].start)i++;return i}
+const ticks=$('ticks');FILMS.forEach((f,i)=>{if(i){const el=document.createElement('i');el.style.left=(f.start/TOTAL*100)+'%';ticks.appendChild(el)}});
+const chap=$('chapters');FILMS.forEach((f,i)=>{const b=document.createElement('button');b.type='button';b.innerHTML='<b>'+['I','II'][i]+'. '+f.name+'</b><small>'+f.yr+' · '+f.blurb+'</small>';b.onclick=()=>{seek(f.start);if(!playing)play()};chap.appendChild(b);f.btn=b});
+function render(){
+  const i=locate(time),sc=SCENES[i],st=time-sc.start,p=clamp(st/sc.dur);
+  c.save();c.imageSmoothingEnabled=false;
+  try{sc.draw(st,p,sc.dur)}catch(e){R(0,0,W,H,'#000');console.error('scene',i,e)}
+  c.restore();
+  const edge=Math.min(st,sc.dur-st);if(i>0||st>.3)fade(1-clamp(edge/.3));
+  let li=-1;for(let k=0;k<sc.cues.length;k++)if(time>=sc.cues[k])li=k;
+  const txt=started&&li>=0?sc.lines[li]:'';
+  if(txt!==lastSub){subs.innerHTML=fmtSub(txt);lastSub=txt}
+  if(sc.film!==lastFilm){lastFilm=sc.film;FILMS.forEach((f,k)=>f.btn.classList.toggle('on',k===sc.film));nowEl.textContent=FILMS[sc.film].name+' ('+FILMS[sc.film].yr+')'}
+  scrub.value=time.toFixed(1);timeEl.textContent=fmt(time)+' / '+fmt(TOTAL);
+}
+function poster(t){cityBG('night',170,t*10,t,[262,34]);fade(.35);swing(150,-30,120,Math.sin(t*1.4)*.6,CH.amz2,{s:1.8});T('THE AMAZING',W/2,30,'#fff',8,'center','#1f3a9e');T('SPIDER-MAN',W/2,50,'#d0142e',16,'center','#1f3a9e');T('THE PIXEL DUOLOGY',W/2,72,'#fff',6)}
+function loop(ts){const dt=last?Math.min(.1,(ts-last)/1000):0;last=ts;
+  if(playing){time+=dt;if(time>=TOTAL){time=TOTAL-.01;pause()}}
+  if(!started){c.save();poster(ts/1000);c.restore();nowEl.textContent=''}else render();
+  requestAnimationFrame(loop)}
+function play(){started=true;playing=true;startBtn.hidden=true;playBtn.textContent='PAUSE';if(time>=TOTAL-.05)time=0}
+function pause(){playing=false;playBtn.textContent='PLAY'}
+function seek(v){started=true;startBtn.hidden=true;time=clamp(v,0,TOTAL-.01)}
+startBtn.onclick=play;playBtn.onclick=()=>playing?pause():play();
+$('prev').onclick=()=>{const i=locate(time);seek(time-SCENES[i].start>2||i===0?SCENES[i].start:SCENES[i-1].start)};
+$('next').onclick=()=>{const i=locate(time);if(i<SCENES.length-1)seek(SCENES[i+1].start)};
+scrub.oninput=()=>seek(+scrub.value);
+$('fs').onclick=()=>{const el=$('screen');try{const r=document.fullscreenElement?document.exitFullscreen():el.requestFullscreen&&el.requestFullscreen();if(r&&r.catch)r.catch(()=>{})}catch(e){}};
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'&&e.key!==' ')return;const k=e.key.toLowerCase();
+  if(k===' '){e.preventDefault();playing?pause():play()}else if(k==='arrowright'){seek(time+10)}else if(k==='arrowleft'){seek(time-10)}else if(k==='n'){$('next').click()}else if(k==='p'){$('prev').click()}else if(k==='f'){$('fs').click()}});
+window.__movie={SCENES,TOTAL,seek:v=>{seek(v)},render};
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
