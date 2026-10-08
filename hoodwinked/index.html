@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hoodwinked! From the Trailer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: one centered screening column: screen, subtitle strip, transport, act cards */
+  --bg:#0b0f0a; --panel:#141b12; --line:#2b3a26; --ink:#eef0e4; --dim:#93a088;
+  --hood:#c81e2a; --leaf:#3f8a3a; --sub:#fff4c2; --spk:#ff8a7a; --cue:#a8d48a;
+  --f-display:"Press Start 2P", ui-monospace, monospace;
+  --f-body:"VT323", ui-monospace, "Courier New", monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--f-body);font-size:20px;line-height:1.25}
+.wrap{max-width:980px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+h1{font-family:var(--f-display);font-size:clamp(13px,3vw,22px);margin:0;line-height:1.5;color:var(--hood);text-shadow:3px 3px 0 #2a1a10;text-wrap:balance}
+header p{margin:0;color:var(--dim)}
+.screen{position:relative;background:#000;border:2px solid var(--line);box-shadow:0 24px 70px #000c}
+canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/9;image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
+.subs{min-height:3.3em;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px 14px 10px;background:#000;color:var(--sub);font-size:clamp(19px,3.3vw,30px);line-height:1.1;text-wrap:balance}
+.subs .spk{color:var(--spk)}
+.subs .cue{color:var(--cue);font-style:italic}
+.now{position:absolute;top:8px;left:10px;font-family:var(--f-display);font-size:clamp(7px,1.3vw,10px);color:#fff9;text-shadow:1px 1px 0 #000;pointer-events:none}
+.start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0007;border:0;color:var(--ink);font:inherit;cursor:pointer;width:100%}
+.start b{font-family:var(--f-display);font-size:clamp(11px,2.4vw,18px);background:var(--hood);padding:12px 18px;box-shadow:4px 4px 0 #2a1a10}
+.start span{color:#fff;text-shadow:1px 1px 0 #000;font-size:22px}
+.start:focus-visible b,button:focus-visible{outline:2px solid var(--sub);outline-offset:2px}
+.screen:fullscreen{display:flex;flex-direction:column;justify-content:center;border:0}
+.screen:fullscreen canvas{width:auto;height:calc(100vh - 4.2em);margin:0 auto}
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.transport button{font-family:var(--f-display);font-size:10px;color:var(--ink);background:var(--panel);border:2px solid var(--line);padding:9px 11px;cursor:pointer}
+.transport button:hover{border-color:var(--hood)}
+.time{font-variant-numeric:tabular-nums;color:var(--dim);min-width:7.5em}
+.track{position:relative;flex:1 1 260px;min-width:0;height:28px;display:flex;align-items:center}
+.track input{width:100%;accent-color:var(--hood);margin:0}
+.ticks{position:absolute;inset:0;pointer-events:none}
+.ticks i{position:absolute;top:2px;bottom:2px;width:2px;background:var(--leaf)}
+.chapters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.chapters button{text-align:left;font:inherit;color:var(--ink);background:var(--panel);border:2px solid var(--line);padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0}
+.chapters button.on{border-color:var(--hood);box-shadow:3px 3px 0 var(--leaf)}
+.chapters b{font-family:var(--f-display);font-size:10px;line-height:1.5}
+.chapters small{color:var(--dim);font-size:18px}
+.note{color:var(--dim);font-size:18px;margin:0}
+@media (max-width:560px){.chapters{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>HOODWINKED! (AS SEEN IN THE TRAILER)</h1>
+    <p>A full recap from someone who watched the trailer once.</p>
+  </header>
+
+  <div class="screen" id="screen">
+    <canvas id="cv" width="320" height="180" aria-label="Pixel art movie"></canvas>
+    <div class="now" id="now"></div>
+    <div class="subs" id="subs" aria-live="polite"></div>
+    <button class="start" id="start" type="button"><b>&#9654; PRESS START</b><span id="runtime">Runtime 4:00 · subtitles on · accuracy off</span></button>
+  </div>
+
+  <div class="transport">
+    <button id="play" type="button">PLAY</button>
+    <button id="prev" type="button" aria-label="Previous scene">&#9664;&#9664;</button>
+    <button id="next" type="button" aria-label="Next scene">&#9654;&#9654;</button>
+    <div class="track"><input id="scrub" type="range" min="0" max="240" step="0.1" value="0" aria-label="Seek"><div class="ticks" id="ticks"></div></div>
+    <span class="time" id="time">00:00 / 04:00</span>
+    <button id="fs" type="button">FULL</button>
+  </div>
+
+  <div class="chapters" id="chapters"></div>
+  <p class="note">Space plays and pauses. Arrow keys skip 10 seconds. N and P jump scenes. F goes fullscreen.</p>
+</div>
+
+<script>
+'use strict';
+// ============================================================ engine
+const W=320,H=180;
+const cv=document.getElementById('cv'),c=cv.getContext('2d');
+const SK='#f0c08e';
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const L=(a,b,p)=>a+(b-a)*clamp(p);
+const seg=(p,a,b)=>clamp((p-a)/(b-a));
+const ez=p=>{p=clamp(p);return p*p*(3-2*p)};
+const rng=s=>()=>(s=(s*16807)%2147483647)/2147483647;
+function hex(h){const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]}
+function mix(a,b,t){const A=hex(a),B=hex(b);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*clamp(t)).toString(16).padStart(2,'0')).join('')}
+function R(x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function disc(cx,cy,r,col){r=Math.round(r);for(let y=-r;y<=r;y++){const w=Math.round(Math.sqrt(Math.max(0,r*r-y*y)));R(cx-w,cy+y,w*2+1,1,col)}}
+function T(s,x,y,col='#fff',size=8,al='center',sh='#000'){c.font=size+'px "Press Start 2P", monospace';c.textAlign=al;c.textBaseline='middle';const o=Math.max(1,Math.round(size/8));if(sh){c.fillStyle=sh;c.fillText(s,x+o,y+o)}c.fillStyle=col;c.fillText(s,x,y)}
+function ln(x1,y1,x2,y2,col='#eef2ff',w=1){c.strokeStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()}
+function fade(a,col='#000'){a=clamp(a);if(a<=0)return;c.globalAlpha=a;R(0,0,W,H,col);c.globalAlpha=1}
+function alpha(a,fn){c.globalAlpha=clamp(a);fn();c.globalAlpha=1}
+function shake(k,t){c.translate(Math.round(Math.sin(t*90)*k),Math.round(Math.cos(t*70)*k))}
+function sfx(s,x,y,col='#ffe066',size=8){T(s,x,y,col,size,'center','#1a0a0a')}
+function heart(x,y,col='#ff4f7a'){R(x-3,y-2,2,2,col);R(x+1,y-2,2,2,col);R(x-3,y,6,1,col);R(x-2,y+1,4,1,col);R(x-1,y+2,2,1,col)}
+function note(x,y,col='#fff'){R(x,y,1,6,col);R(x-2,y+5,3,2,col);R(x+1,y,3,1,col)}
+function boom(x,y,r,t){const k=(t*20|0)%2;disc(x,y,r+k,'#ff4a1a');disc(x,y,r*.7,'#ff9a2e');disc(x,y,r*.38,'#fff3b0')}
+function qmark(x,y,col='#fff'){T('?',x,y,col,10)}
+
+// ---------------------------------------------------------------- scenery
+const SKIES={day:['#5fb0e8','#d6f0ff'],dusk:['#3a2a5e','#f5a05a'],night:['#081020','#22345a'],snow:['#7ac0f0','#f0f8ff']};
+const STARS=[];{const r=rng(3);for(let i=0;i<70;i++)STARS.push([r()*W|0,r()*100|0,r()])}
+function sky(m,t=0){const[a,b]=SKIES[m];for(let i=0;i<12;i++)R(0,i*15,W,15,mix(a,b,i/11));if(m==='night')for(const s of STARS)R(s[0],s[1],1,1,(s[2]+t*.4)%1<.85?'#fff':'#5a63a0')}
+function pine(x,base,h,col){const tw=Math.max(2,h/10|0);R(x-tw/2,base-h*.25,tw,h*.25,'#4a2e1a');for(let i=0;i<5;i++){const w=h*.55*(1-i/5),y=base-h*.25-(i+1)*h*.15;R(x-w/2,y,w,h*.17,col)}}
+const TREES=[];{const r=rng(11);for(let i=0;i<40;i++)TREES.push([i*18+r()*10,40+r()*50,r()])}
+function forest(m='day',t=0,sc=0,base=140){sky(m,t);const far=m==='night'?'#0f2a1e':'#4f7f5a',near=m==='night'?'#0a1f14':'#2f6a3a';for(const[x,h]of TREES){const xx=((x-sc*.4)%720+720)%720-40;if(xx<W+20)pine(xx,base-6,h*.8,far)}for(const[x,h,k]of TREES){const xx=((x*1.7-sc)%720+720)%720-40;if(k>.4&&xx<W+20)pine(xx,base+4,h*1.3,near)}R(0,base,W,H-base,m==='night'?'#1a2e16':'#5a9a3a');R(0,base,W,2,m==='night'?'#2a4422':'#7ab84a');R(0,base+18,W,10,m==='night'?'#3a3020':'#b8945a')}
+function cottageIn(t){R(0,0,W,125,'#8a5a32');for(let y=0;y<125;y+=8)R(0,y,W,1,'#6e4626');R(0,125,W,55,'#5a3a20');for(let x=0;x<W;x+=24)R(x,125,1,55,'#4a2e18');R(30,26,60,46,'#2e2219');c.save();c.beginPath();c.rect(33,29,54,40);c.clip();forest('day',t,0,80);c.restore();R(59,29,2,40,'#2e2219');R(200,104,100,24,'#e8dcc0');R(200,112,100,16,'#b03a4a');for(let i=0;i<5;i++)R(204+i*20,114,8,8,'#d8b84a');R(196,90,6,40,'#5a3a20');R(130,40,40,85,'#6a4224');R(160,82,4,4,'#d8b84a')}
+function cottageOut(t,m='day'){forest(m,t,0,150);R(110,70,110,80,'#c9a36a');for(let y=70;y<150;y+=8)R(110,y,110,1,'#a8844a');for(let i=0;i<14;i++)R(100+i*4,70-i*3,130-i*8,3,'#7a3a2a');R(150,104,26,46,'#5a3a20');R(122,86,20,18,'#ffe8a0');R(188,86,20,18,'#ffe8a0');R(196,40,10,20,'#6a6a6a')}
+function tape(y,t){for(let x=-20;x<W;x+=26){R(x+(t*4%26),y,20,5,'#f2d22a');T('X',x+(t*4%26)+10,y+3,'#111',4,'center',null)}}
+function sirens(t){alpha(.14,()=>R(0,0,W,H,(t*4|0)%2?'#ff2a2a':'#2a6aff'))}
+function mountain(t,sc=0){sky('snow',t);c.fillStyle='#c8d8e8';c.beginPath();c.moveTo(0,120);c.lineTo(80,40);c.lineTo(170,110);c.lineTo(250,30);c.lineTo(320,90);c.lineTo(320,180);c.lineTo(0,180);c.fill();c.fillStyle='#f4f8fc';c.beginPath();c.moveTo(-10,60);c.lineTo(330,170);c.lineTo(330,180);c.lineTo(-10,180);c.fill();for(let i=0;i<8;i++){const x=((i*60-sc)%400+400)%400-40;pine(x,70+x*.34+20,22,'#2f5a3a')}}
+function board(t){R(0,0,W,H,'#3a3a44');R(20,14,280,120,'#b88a5a');for(let i=0;i<60;i++)R((i*53)%280+20,(i*29)%120+14,2,2,'#a07a4a');R(0,140,W,40,'#2a2a30')}
+function meadow(t){sky('day',t);R(0,110,W,70,'#6ab84a');for(let i=0;i<40;i++)R((i*37)%W,112+(i*17)%60,2,2,['#ff6a8a','#ffe066','#ffffff'][i%3]);disc(250,170,60,'#7ac85a')}
+function gorge(t){sky('dusk',t);R(0,100,90,80,'#5a4a3a');R(230,90,90,90,'#5a4a3a');for(let i=0;i<10;i++)R(90+i*14,150+(i%3)*8,14,30,'#2a2018');ln(0,40,W,70,'#222');}
+
+// ---------------------------------------------------------------- the cast
+// one rig for everyone: body like a person, head + tail by species
+const CH={
+ red:{kind:'red',top:'#c81e2a',legs:'#3a2a20',dress:'#c81e2a',shoe:'#3a2a20'},
+ wolf:{kind:'wolf',fur:'#8a8f99',top:'#6a5a4a',legs:'#4a4a52',shoe:'#333'},
+ granny:{kind:'granny',top:'#8f6fa6',legs:'#8f6fa6',dress:'#8f6fa6',shoe:'#5a3a3a'},
+ grannyX:{kind:'granny',top:'#ff8a1f',legs:'#2a6aff',shoe:'#222',helmet:1},
+ woods:{kind:'woods',top:'#c8302a',side:'#7a1a1a',legs:'#5a4a2a',shoe:'#3a2a1a',s:1.25},
+ bear:{kind:'bear',fur:'#6b4423',top:'#1f2f5a',legs:'#1f2f5a',shoe:'#111',s:1.35},
+ frog:{kind:'frog',fur:'#5aa83a',top:'#c9a46a',legs:'#5aa83a',shoe:'#3a7a2a',s:.8},
+ twitchy:{kind:'squirrel',fur:'#b5652a',top:'#b5652a',legs:'#b5652a',shoe:'#7a3a1a',s:.6},
+ goat:{kind:'goat',fur:'#ece6d6',top:'#ece6d6',legs:'#ece6d6',shoe:'#5a4a3a'},
+ bunny:{kind:'bunny',fur:'#f4f2ee',top:'#f4f2ee',legs:'#f4f2ee',shoe:'#e8b0b8',s:.7},
+ cop:{kind:'pig',fur:'#f0a8b0',top:'#1f2f5a',legs:'#1f2f5a',shoe:'#111'},
+};
+function arm(kind,front,by,col,hand,sw=0){const x=front?4:-6;switch(kind){
+ case'up':R(x,-22+by,2,6,col);R(x,-24+by,2,2,hand);break;
+ case'out':if(front){R(4,-16+by,6,2,col);R(10,-16+by,2,2,hand)}else{R(-10,-16+by,6,2,col);R(-12,-16+by,2,2,hand)}break;
+ case'face':R(2,-18+by,2,3,col);R(1,-20+by,2,2,hand);break;
+ default:R(x,-16+by+sw,2,6,col);R(x,-10+by+sw,2,2,hand)}}
+function critter(x,y,ch,o={}){
+ const s=(o.s||2)*(ch.s||1),f=o.f||1,pose=o.pose||'stand',ph=o.ph||0;
+ c.save();c.translate(Math.round(x),Math.round(y));
+ if(o.rot){c.translate(0,-12*s);c.rotate(o.rot);c.translate(0,12*s)}
+ c.scale(f*s,s);
+ const fur=ch.fur||SK,top=ch.top,legs=ch.legs,shoe=ch.shoe||'#222',hand=ch.fur||SK;
+ let by=0;
+ // tail first, behind everything
+ if(ch.kind==='wolf'){R(-8,-12,3,7,fur);R(-9,-6,2,2,'#d8dce4')}
+ if(ch.kind==='squirrel'){const w=Math.round(Math.sin((o.t||0)*30)*(o.jitter?1:0));R(-10+w,-24,5,16,fur);R(-11+w,-26,5,4,fur);R(-9+w,-22,2,10,'#d88a4a')}
+ if(ch.kind==='bunny'){R(-6,-10,3,3,'#ffffff')}
+ // legs
+ if(pose==='sit'){by=3;R(-3,-5,8,3,legs);R(4,-5,2,5,legs);R(4,-1,3,1,shoe)}
+ else if(pose==='jump'||pose==='ski'){R(-4,-8,2,5,legs);R(-5,-4,2,2,shoe);R(1,-8,2,4,legs);R(2,-5,3,2,shoe)}
+ else{const a=(pose==='walk'||pose==='run'||pose==='skip')?Math.round(Math.sin(ph)*(pose==='run'?3:2)):0;R(-3+a,-8,2,7,legs);R(-3+a,-1,3,1,shoe);R(1-a,-8,2,7,legs);R(1-a,-1,3,1,shoe)}
+ if(pose==='skip')by=-Math.round(Math.abs(Math.sin(ph))*2);
+ const sw=(pose==='walk'||pose==='run'||pose==='skip')?Math.round(Math.sin(ph)*1.5):0;
+ const ak={up:['up','up'],ski:['out','out'],point:['d','out'],hold:['out','out'],basket:['d','basket'],face:['d','face'],axe:['d','up']}[pose]||['d','d'];
+ arm(ak[0],false,by,mix(top,'#000000',.3),mix(hand,'#000000',.3),-sw);
+ // torso
+ R(-4,-16+by,8,8,top);
+ if(ch.side)for(let i=0;i<4;i++){R(-4,-15+by+i*2,8,1,ch.side);R(-1,-16+by,1,8,ch.side)}
+ if(ch.dress)R(-5,-9+by,10,6,ch.dress);
+ if(ch.kind==='red')R(-6,-17+by,3,12,'#a8161f');
+ if(ch.kind==='frog'){R(-4,-10+by,8,4,'#b08a50');R(-1,-16+by,2,8,'#8a6a3a')}
+ if(ch.kind==='goat')R(-1,-17+by,2,2,'#ffd23f');
+ // head
+ const hy=-23+by;
+ switch(ch.kind){
+  case'red':R(-4,hy-1,8,9,'#c81e2a');R(-1,hy+1,5,5,SK);R(1,hy+3,1,1,'#222');R(3,hy+3,1,1,'#222');R(-2,hy+5,2,4,'#e8a040');break;
+  case'granny':R(-3,hy,6,7,SK);R(-3,hy-1,6,2,'#d9d9de');R(-5,hy-1,2,3,'#d9d9de');R(-2,hy+2,6,1,'#1a1a1a');R(1,hy+3,1,1,'#222');R(-1,hy+3,1,1,'#222');if(ch.helmet){R(-4,hy-3,8,4,'#ff8a1f');R(-3,hy+1,7,2,'#7ad0ff')}break;
+  case'woods':R(-3,hy,6,7,SK);R(-3,hy-1,6,2,'#7a4a1a');R(-1,hy+4,5,4,'#7a4a1a');R(1,hy+2,1,1,'#222');R(-1,hy+2,1,1,'#222');break;
+  case'wolf':R(-3,hy,6,7,fur);R(-3,hy-2,2,2,fur);R(1,hy-2,2,2,fur);R(3,hy+3,4,3,fur);R(6,hy+3,1,1,'#111');R(1,hy+2,1,1,'#ffd23f');R(3,hy+6,3,1,'#d8dce4');if(o.nightgown){R(-4,hy-2,8,3,'#f0e6f0');R(-5,hy+1,2,3,'#f0e6f0')}break;
+  case'bear':R(-3,hy,7,7,fur);R(-3,hy-1,2,2,fur);R(2,hy-1,2,2,fur);R(2,hy+3,4,3,'#a07a50');R(5,hy+3,1,1,'#111');R(1,hy+2,1,1,'#111');R(-3,hy-2,7,2,'#1f2f5a');R(0,hy-2,2,1,'#ffd23f');break;
+  case'frog':R(-4,hy+1,9,6,fur);R(-3,hy-1,3,3,fur);R(2,hy-1,3,3,fur);R(-2,hy,1,1,'#111');R(3,hy,1,1,'#111');R(-1,hy+5,6,1,'#2a5a1a');R(-3,hy-3,7,2,'#6a4a2a');R(-2,hy-4,5,1,'#6a4a2a');break;
+  case'squirrel':{const j=o.jitter?Math.round(Math.sin((o.t||0)*60)):0;R(-3+j,hy,6,7,fur);R(-3+j,hy-2,2,2,fur);R(2+j,hy-2,2,2,fur);R(-1+j,hy+1,3,3,'#fff');R(2+j,hy+1,3,3,'#fff');R(0+j,hy+2,1,1,'#111');R(3+j,hy+2,1,1,'#111');R(4+j,hy+5,2,1,'#fff');break}
+  case'goat':R(-3,hy,6,7,fur);R(3,hy+3,3,3,fur);R(-2,hy-3,1,3,'#8a7a5a');R(1,hy-3,1,3,'#8a7a5a');R(3,hy+6,2,3,'#d8d0c0');R(1,hy+2,1,1,'#222');if(o.sing)R(4,hy+5,2,1,'#5a1a1a');break;
+  case'bunny':R(-3,hy,6,7,fur);R(-2,hy-6,2,6,fur);R(1,hy-6,2,6,fur);R(-1,hy-5,1,4,'#f0a0b0');R(2,hy-5,1,4,'#f0a0b0');R(4,hy+4,1,1,'#f07a90');R(1,hy+2,1,1,o.evil?'#d0202f':'#222');if(o.evil){R(0,hy+1,3,1,'#111')}break;
+  case'pig':R(-3,hy,6,7,fur);R(3,hy+3,3,2,'#e0889a');R(4,hy+3,1,1,'#7a3a4a');R(1,hy+2,1,1,'#222');R(-3,hy-2,7,2,'#1f2f5a');break;
+ }
+ // front arm + props
+ if(ak[1]==='basket'){R(4,-15+by,2,5,top);R(4,-10+by,6,5,'#b8864a');R(5,-13+by,4,1,'#8a5a2a');R(5,-11+by,4,1,'#f4e8d0')}
+ else arm(ak[1],true,by,top,hand,sw);
+ if(pose==='axe'){R(4,-34+by,1,12,'#6a4a2a');R(2,-36+by,5,4,'#c0c4cc')}
+ if(o.camera){R(8,-18+by,5,4,'#222');R(10,-17+by,2,2,'#7ad0ff')}
+ if(o.pad){R(8,-17+by,4,5,'#f4f4e8');R(9,-15+by,2,1,'#888')}
+ if(o.mug){R(8,-16+by,3,4,'#e8e8e8');R(9,-17+by,2,1,'#5a3a1a')}
+ c.restore();
+}
+
+// ============================================================ the recap
+const SCENES=[];let ACT=0;
+function S(lines,draw,o={}){SCENES.push({film:ACT,lines,draw,min:o.min||0})}
+
+// ------------------------------------------------ ACT I : THE CRIME
+ACT=0;
+S(['[this recap is based entirely on the trailer]','[I watched it once, in 2005, before a different movie]','[I am extremely confident anyway]'],(t,p)=>{R(0,0,W,H,'#000');alpha(seg(p,0,.2)*(1-seg(p,.85,1)),()=>{T('A PIXEL PICTURES',W/2,70,'#e8e8e8',8);T('PRESENTATION',W/2,86,'#e8e8e8',8);T('BASED ON ONE (1) TRAILER',W/2,116,'#c81e2a',6)})},{min:9});
+S(['[the exclamation point is part of the title. legally.]','[it is Little Red Riding Hood, but with cops]'],(t,p)=>{forest('dusk',t,t*6);fade(.35);const a=seg(p,.05,.3);alpha(a,()=>{T('HOODWINKED',W/2-6,64,'#c81e2a',18,'center','#2a1a10');T('!',W/2+104,64,'#ffd23f',18,'center','#2a1a10');T('(2005)',W/2,92,'#fff',8)});critter(L(-20,340,p),170,CH.red,{pose:'skip',ph:t*9,s:1.6})},{min:8});
+S(['[Granny\'s cottage. police lights. something has happened.]','[the woodsman came through the window. with an axe. screaming.]','[the wolf is wearing Granny\'s nightgown. that\'s at least one crime.]','[Granny is tied up in the closet. I think. it was a quick shot.]','COP: FREEZE!','[everyone was already frozen. it was a freeze-frame.]'],(t,p)=>{c.save();if(p>.15&&p<.25)shake(2,t);cottageIn(t);critter(240,128,CH.wolf,{rot:-Math.PI/2,nightgown:1,s:1.8});critter(110,166,CH.red,{pose:'basket'});const wx=L(-30,60,seg(p,.12,.22));critter(wx,166-Math.sin(seg(p,.12,.22)*Math.PI)*40,CH.woods,{pose:'axe'});if(p>.12&&p<.32)for(let i=0;i<10;i++)R(40+(i*13)%40,30+(i*17)%40,3,2,'#bfe6ff');R(130,40,40,85,p>.45?'#2a1a10':'#6a4224');if(p>.45)critter(150,124,CH.granny,{s:1.6});if(p>.6)critter(290,166,CH.cop,{f:-1,pose:'point'});c.restore();if(p>.6)sirens(t);if(p>.75){fade(.35,'#fff');sfx('FREEZE!',160,30,'#d0202f',10)}});
+S(['CHIEF (A BEAR): What a mess.','DETECTIVE (A FROG): Nobody leaves. I want to hear everyone\'s side.','[it\'s a "four sides to every story" movie. the trailer said this with its eyes.]','[the frog has a tiny hat. I trust him completely.]'],(t,p)=>{cottageOut(t);tape(146,t);critter(90,170,CH.bear,{pose:p<.25?'face':'stand'});const fx=L(340,200,seg(p,.2,.35));critter(fx,170,CH.frog,{f:-1,pose:p>.35?'point':'walk',ph:t*10,pad:p>.35});sirens(t)});
+
+// ------------------------------------------------ ACT II : EVERYONE'S STORY
+ACT=1;
+S(['STORY #1: RED','RED: I was just bringing goodies to my Granny.','[she has a basket. what\'s in the basket? the trailer will not say.]','[my guess for the basket: snacks, recipes, a whole subplot]'],(t,p)=>{forest('day',t,t*20);critter(150,166,CH.red,{pose:p<.6?'skip':'basket',ph:t*9});if(p<.18){fade(.5);T('STORY #1: RED',W/2,60,'#fff',10)}if(p>.65)for(let i=0;i<3;i++)qmark(170+i*14,90-((t*10+i*6)%20),'#ffe066')});
+S(['[a wolf follows her through the woods. menacingly. or maybe he\'s just walking the same way]','WOLF: Nice basket.','RED: Back off, wolf.','[she knows karate? she might know karate. something happens with a kick.]'],(t,p)=>{forest('day',t,t*14);critter(180,166,CH.red,{pose:'walk',ph:t*9});const wx=p<.6?L(-20,110,seg(p,0,.4)):110-seg(p,.75,.85)*60;critter(wx,166,CH.wolf,{pose:p<.4?'walk':'stand',ph:t*9,rot:p>.75?-seg(p,.75,.85)*1.4:0});if(p>.7){critter(180,166,CH.red,{f:-1,pose:'jump'});if(p<.85)sfx('HI-YA!',150,90,'#ffe066')}});
+S(['RED: Granny, what big eyes you have!','WOLF (AS GRANNY): ...Thank you?','RED: What big ears you have!','[this part I know. this part is the actual fairy tale.]'],(t,p)=>{cottageIn(t);critter(250,124,CH.wolf,{f:-1,nightgown:1,s:1.8,pose:'sit'});R(200,104,100,24,'#e8dcc0');R(200,112,100,16,'#b03a4a');for(let i=0;i<5;i++)R(204+i*20,114,8,8,'#d8b84a');critter(140,166,CH.red,{pose:p<.5?'point':'basket'});if(p>.1&&p<.3)for(let i=0;i<2;i++)disc(240+i*8,82,3,'#fff')});
+S(['STORY #2: THE WOLF','WOLF: I\'m not a bad guy. I\'m an investigative reporter.','[he has a camera in the trailer. that\'s the twist. I\'m almost sure.]','[he has a sidekick: a squirrel with a coffee problem]'],(t,p)=>{forest('dusk',t,t*8);critter(140,166,CH.wolf,{camera:1,pose:'point'});if(p>.4&&p<.5)fade(.8,'#fff');if(p>.7)critter(200,166,CH.twitchy,{jitter:1,t,mug:1,s:2.2});if(p<.18){fade(.5);T('STORY #2: THE WOLF',W/2,60,'#fff',10)}});
+S(['SQUIRREL: [talks so fast the subtitles cannot keep up]','SQUIRREL: blahblahblahGRANNYblahblahPHOTOSblahblahblahblahblahblahblah','[then: a slow-motion squirrel moment. objectively the best part of the trailer]','[time stops. the squirrel sees everything.]'],(t,p)=>{forest('day',t,0);const slow=p>.5;critter(160+(slow?0:Math.sin(t*50)*30),166,CH.twitchy,{jitter:!slow,t:slow?t*.02:t,s:3});if(!slow)for(let i=0;i<6;i++)R(100+i*20+Math.sin(t*40+i)*10,120,10,1,'#fff');else{alpha(.25,()=>R(0,0,W,H,'#7ad0ff'));for(let i=0;i<20;i++)R((i*31)%W,(i*47+t*2)%H,1,1,'#fff')}critter(60,166,CH.wolf,{pose:'face'})});
+S(['STORY #3: THE WOODSMAN','WOODSMAN: I\'m not even a woodsman. I\'m an actor. The axe is a prop.','[mostly a prop]','[schnitzel comes up. I don\'t know why. I respect it.]','[he went through the window because of... a sneeze? the trailer cut away]'],(t,p)=>{forest('day',t,0);R(40,110,90,40,'#e8d0a0');R(40,104,90,8,'#c8302a');T('SCHNITZEL',85,120,'#7a1a1a',6,'center',null);disc(60,152,6,'#222');disc(110,152,6,'#222');critter(200,166,CH.woods,{pose:p<.4?'stand':p<.7?'up':'axe'});if(p>.78){sfx('ACHOO!',200,70,'#fff',10)}if(p<.15){fade(.5);T('STORY #3: THE WOODSMAN',W/2,60,'#fff',8)}});
+S(['[at some point there is a goat who sings]','GOAT: ♪ [singing, with a bell, at great length] ♪','RED: Why is there a goat?','GOAT: ♪ why is there a goaaaaat ♪','[I genuinely cannot tell you how the goat fits in. he just does.]'],(t,p)=>{meadow(t);R(200,140,60,20,'#8a8a8a');critter(230,140,CH.goat,{f:-1,sing:(t*4|0)%2,pose:'up'});for(let i=0;i<4;i++)note(180-i*20,80-((t*20+i*10)%40),'#fff');critter(90,166,CH.red,{pose:p>.4&&p<.6?'point':'stand'})});
+S(['STORY #4: GRANNY','GRANNY: I have a secret.','GRANNY: I\'m an extreme sports grandma.','[Granny goes off a ski jump. the trailer peaked here.]','[so was she tied up in the closet or on a mountain? the trailer showed both. I choose both.]'],(t,p)=>{mountain(t,t*60);const k=seg(p,.35,.85);const x=L(20,320,k),y=k<.6?L(60,120,k/.6):120-Math.sin((k-.6)/.4*Math.PI)*50;c.save();c.translate(x,y);c.rotate(.3);R(-14,1,28,2,'#d0202f');critter(0,0,CH.grannyX,{pose:'ski',s:1.8});c.restore();if(p>.7&&p<.85)sfx('RADICAL!',200,40,'#d0202f');if(p<.15){fade(.5);T('STORY #4: GRANNY',W/2,60,'#fff',10)}});
+
+// ------------------------------------------------ ACT III : THE TRUTH (GUESSED)
+ACT=2;
+S(['[meanwhile: a "Goody Bandit" is stealing every recipe in the forest]','[suspects: anyone who has ever held a basket]','[definitely NOT this adorable bunny. look at that face.]','BUNNY: ...','[why is the bunny still on screen]'],(t,p)=>{forest('night',t,0);for(let i=0;i<4;i++){R(30+i*70,60,40,30,'#f4e8d0');T('WANTED',50+i*70,68,'#7a1a1a',4,'center',null);R(42+i*70,74,16,12,'#555');qmark(50+i*70,80,'#fff')}const k=seg(p,.45,1);critter(160,166,CH.bunny,{s:L(2,4.2,k),evil:p>.75});if(p>.8)alpha(.3+.2*Math.sin(t*6),()=>R(0,0,W,H,'#3a0010'))});
+S(['DETECTIVE FROG: It all connects.','[red string. so much red string.]','[I assume the frog solves it. frogs are smart. look at him.]','[it was the bunny. probably. the trailer didn\'t say. please don\'t email me.]'],(t,p)=>{board(t);const pins=[[50,40],[120,30],[200,44],[260,36],[80,100],[170,96],[240,104]];const k=seg(p,.1,.6);for(let i=0;i<pins.length-1;i++)if(k>i/pins.length){const[a,b]=pins[i],[c2,d]=pins[(i*3+2)%pins.length];ln(a,b,c2,d,'#d0202f')}for(const[x,y]of pins){R(x-10,y-8,20,16,'#f4f4e8');R(x-1,y-9,2,2,'#d0202f')}if(p>.7){R(150,60,30,28,'#f4f4e8');critter(165,86,CH.bunny,{s:.9,evil:1});ln(150,60,180,88,'#d0202f',2);ln(180,60,150,88,'#d0202f',2)}critter(70,176,CH.frog,{pose:'point',s:2.4})});
+S(['[there is probably a big chase. every 2005 animated movie had a big chase.]','[explosions? in a children\'s movie? sure.]','[I\'m adding a cable car. you can\'t stop me.]','[the bunny is defeated. by teamwork. and the goat.]'],(t,p)=>{c.save();if(p>.55&&p<.7)shake(2,t);gorge(t);const cx=L(20,300,p),cy=40+cx*30/W;ln(cx,cy,cx,cy+8,'#222');R(cx-18,cy+8,36,22,'#c81e2a');R(cx-14,cy+12,8,8,'#ffe8a0');R(cx+6,cy+12,8,8,'#ffe8a0');critter(cx-10,cy+30,CH.bunny,{s:1,evil:1});critter(cx+10,cy+30,CH.red,{s:1});critter(cx+30,cy+30,CH.wolf,{s:1,f:-1});if(p>.55&&p<.75)boom(160,150,14,t);if(p>.75){critter(L(-20,100,seg(p,.75,.9)),100,CH.goat,{pose:'run',ph:t*12,s:1.6});if(p>.88)sfx('BAAA!',120,70,'#fff')}c.restore()});
+S(['[everyone becomes friends and starts a detective agency. probably.]','[Granny does a kickflip]','[the end]','[I assume there was a sequel. I did not see that trailer either.]'],(t,p)=>{forest('dusk',t,0);const cast=[CH.granny,CH.red,CH.wolf,CH.twitchy,CH.woods,CH.frog,CH.bear];cast.forEach((ch,i)=>critter(30+i*42,166-(i===0&&p>.25&&p<.45?Math.sin(seg(p,.25,.45)*Math.PI)*30:0),ch,{pose:'up',jitter:ch===CH.twitchy,t}));critter(300,170,CH.goat,{s:1.3,f:-1,sing:1});if(p>.5)for(let i=0;i<4;i++)heart(60+i*60,60-((t*10+i*5)%30))});
+S(['[no post-credits scene. or maybe there was. I left during the credits.]','[thanks for watching]'],(t,p)=>{R(0,0,W,H,'#000');const cr=['THE END (?)','','HOODWINKED! (2005)','AS REMEMBERED FROM THE TRAILER','','RED ................ BASKET','WOLF ............... REPORTER (?)','GRANNY ............. EXTREME','WOODSMAN ........... SCHNITZEL','SQUIRREL ........... 9 COFFEES','GOAT ............... UNEXPLAINED','THE BUNNY .......... SUSPICIOUS','','RECAP ACCURACY ..... UNVERIFIED','SCENES INVENTED .... SEVERAL','','UNOFFICIAL FAN PARODY.','NOT AFFILIATED WITH THE FILM\'S','MAKERS OR DISTRIBUTORS.'];const y0=L(190,-cr.length*12+90,p);cr.forEach((s,i)=>T(s,W/2,y0+i*12,i===0?'#c81e2a':'#e8e8e8',i===0?12:6))},{min:12});
+
+// ============================================================ timeline + player
+const TARGET=240;
+const weight=s=>1.5+s.length/20;
+let raw=0;for(const sc of SCENES){sc.w=sc.lines.map(weight);sc.raw=Math.max(sc.min,sc.w.reduce((a,b)=>a+b,0));raw+=sc.raw}
+let acc=0;const K=TARGET/raw;for(const sc of SCENES){sc.start=acc;sc.dur=sc.raw*K;acc+=sc.dur;const tot=sc.w.reduce((a,b)=>a+b,0),pad=(sc.raw-tot)/2*K;let a2=sc.start+Math.max(0,pad);sc.cues=sc.w.map(w=>{const s=a2;a2+=w*K;return s})}
+const TOTAL=acc;
+const FILMS=[{name:'THE CRIME',yr:'Act I',blurb:'Cottage. Axe. Nightgown.'},{name:'THE STORIES',yr:'Act II',blurb:'Red, Wolf, Woodsman, Granny. And a goat.'},{name:'THE TRUTH',yr:'Act III',blurb:'Guessed. Mostly the bunny.'}];
+FILMS.forEach((f,i)=>{f.start=SCENES.find(s=>s.film===i).start});
+
+const $=id=>document.getElementById(id);
+const subs=$('subs'),scrub=$('scrub'),timeEl=$('time'),playBtn=$('play'),startBtn=$('start'),nowEl=$('now');
+scrub.max=TOTAL.toFixed(1);
+let time=0,playing=false,started=false,last=0,lastSub=null,lastFilm=-1;
+const fmt=s=>{s=Math.max(0,Math.round(s));return String(s/60|0).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+$('runtime').textContent='Runtime '+fmt(TOTAL)+' · subtitles on · accuracy off';
+const esc=s=>s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]);
+function fmtSub(s){if(!s)return'';if(s[0]==='[')return'<span class="cue">'+esc(s)+'</span>';const m=s.match(/^([A-Z][A-Z0-9 .'()#\-]*?):\s(.*)$/);return m?'<span class="spk">'+esc(m[1])+':</span> '+esc(m[2]):esc(s)}
+function locate(tm){let i=0;while(i<SCENES.length-1&&tm>=SCENES[i+1].start)i++;return i}
+const ticks=$('ticks');FILMS.forEach((f,i)=>{if(i){const el=document.createElement('i');el.style.left=(f.start/TOTAL*100)+'%';ticks.appendChild(el)}});
+const chap=$('chapters');FILMS.forEach((f,i)=>{const b=document.createElement('button');b.type='button';b.innerHTML='<b>'+f.yr.toUpperCase()+'. '+f.name+'</b><small>'+f.blurb+'</small>';b.onclick=()=>{seek(f.start);if(!playing)play()};chap.appendChild(b);f.btn=b});
+function render(){
+  const i=locate(time),sc=SCENES[i],st=time-sc.start,p=clamp(st/sc.dur);
+  c.save();c.imageSmoothingEnabled=false;
+  try{sc.draw(st,p,sc.dur)}catch(e){R(0,0,W,H,'#000');console.error('scene',i,e)}
+  c.restore();
+  const edge=Math.min(st,sc.dur-st);if(i>0||st>.3)fade(1-clamp(edge/.3));
+  let li=-1;for(let k=0;k<sc.cues.length;k++)if(time>=sc.cues[k])li=k;
+  const txt=started&&li>=0?sc.lines[li]:'';
+  if(txt!==lastSub){subs.innerHTML=fmtSub(txt);lastSub=txt}
+  if(sc.film!==lastFilm){lastFilm=sc.film;FILMS.forEach((f,k)=>f.btn.classList.toggle('on',k===sc.film));nowEl.textContent='HOODWINKED! · '+FILMS[sc.film].yr.toUpperCase()}
+  scrub.value=time.toFixed(1);timeEl.textContent=fmt(time)+' / '+fmt(TOTAL);
+}
+function poster(t){forest('dusk',t,t*8);fade(.3);T('HOODWINKED!',W/2,44,'#c81e2a',16,'center','#2a1a10');T('AS SEEN IN THE TRAILER',W/2,66,'#fff',6);critter(110,166,CH.red,{pose:'basket'});critter(170,166,CH.wolf,{f:-1,camera:1});critter(220,166,CH.goat,{f:-1,sing:(t*4|0)%2});critter(260,166,CH.bunny,{f:-1,evil:(t|0)%4===0})}
+function loop(ts){const dt=last?Math.min(.1,(ts-last)/1000):0;last=ts;
+  if(playing){time+=dt;if(time>=TOTAL){time=TOTAL-.01;pause()}}
+  if(!started){c.save();poster(ts/1000);c.restore();nowEl.textContent=''}else render();
+  requestAnimationFrame(loop)}
+function play(){started=true;playing=true;startBtn.hidden=true;playBtn.textContent='PAUSE';if(time>=TOTAL-.05)time=0}
+function pause(){playing=false;playBtn.textContent='PLAY'}
+function seek(v){started=true;startBtn.hidden=true;time=clamp(v,0,TOTAL-.01)}
+startBtn.onclick=play;playBtn.onclick=()=>playing?pause():play();
+$('prev').onclick=()=>{const i=locate(time);seek(time-SCENES[i].start>2||i===0?SCENES[i].start:SCENES[i-1].start)};
+$('next').onclick=()=>{const i=locate(time);if(i<SCENES.length-1)seek(SCENES[i+1].start)};
+scrub.oninput=()=>seek(+scrub.value);
+$('fs').onclick=()=>{const el=$('screen');try{const r=document.fullscreenElement?document.exitFullscreen():el.requestFullscreen&&el.requestFullscreen();if(r&&r.catch)r.catch(()=>{})}catch(e){}};
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'&&e.key!==' ')return;const k=e.key.toLowerCase();
+  if(k===' '){e.preventDefault();playing?pause():play()}else if(k==='arrowright'){seek(time+10)}else if(k==='arrowleft'){seek(time-10)}else if(k==='n'){$('next').click()}else if(k==='p'){$('prev').click()}else if(k==='f'){$('fs').click()}});
+window.__movie={SCENES,TOTAL,seek:v=>{seek(v)},render};
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
