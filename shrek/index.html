@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shrek: The Pixel Swamp Edition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: one centered screening column: screen, subtitle strip, transport, act cards */
+  --bg:#0b0f0a; --panel:#141b12; --line:#2b3a26; --ink:#eef0e4; --dim:#93a088;
+  --hood:#8ab03a; --leaf:#c8461d; --sub:#fff4c2; --spk:#ff8a7a; --cue:#a8d48a;
+  --f-display:"Press Start 2P", ui-monospace, monospace;
+  --f-body:"VT323", ui-monospace, "Courier New", monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--f-body);font-size:20px;line-height:1.25}
+.wrap{max-width:980px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+h1{font-family:var(--f-display);font-size:clamp(13px,3vw,22px);margin:0;line-height:1.5;color:var(--hood);text-shadow:3px 3px 0 #2a3a1a;text-wrap:balance}
+header p{margin:0;color:var(--dim)}
+.screen{position:relative;background:#000;border:2px solid var(--line);box-shadow:0 24px 70px #000c}
+canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/9;image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
+.subs{min-height:3.3em;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px 14px 10px;background:#000;color:var(--sub);font-size:clamp(19px,3.3vw,30px);line-height:1.1;text-wrap:balance}
+.subs .spk{color:var(--spk)}
+.subs .cue{color:var(--cue);font-style:italic}
+.now{position:absolute;top:8px;left:10px;font-family:var(--f-display);font-size:clamp(7px,1.3vw,10px);color:#fff9;text-shadow:1px 1px 0 #000;pointer-events:none}
+.start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0007;border:0;color:var(--ink);font:inherit;cursor:pointer;width:100%}
+.start b{font-family:var(--f-display);font-size:clamp(11px,2.4vw,18px);background:var(--hood);padding:12px 18px;box-shadow:4px 4px 0 #2a1a10}
+.start span{color:#fff;text-shadow:1px 1px 0 #000;font-size:22px}
+.start:focus-visible b,button:focus-visible{outline:2px solid var(--sub);outline-offset:2px}
+.screen:fullscreen{display:flex;flex-direction:column;justify-content:center;border:0}
+.screen:fullscreen canvas{width:auto;height:calc(100vh - 4.2em);margin:0 auto}
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.transport button{font-family:var(--f-display);font-size:10px;color:var(--ink);background:var(--panel);border:2px solid var(--line);padding:9px 11px;cursor:pointer}
+.transport button:hover{border-color:var(--hood)}
+.time{font-variant-numeric:tabular-nums;color:var(--dim);min-width:7.5em}
+.track{position:relative;flex:1 1 260px;min-width:0;height:28px;display:flex;align-items:center}
+.track input{width:100%;accent-color:var(--hood);margin:0}
+.ticks{position:absolute;inset:0;pointer-events:none}
+.ticks i{position:absolute;top:2px;bottom:2px;width:2px;background:var(--leaf)}
+.chapters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.chapters button{text-align:left;font:inherit;color:var(--ink);background:var(--panel);border:2px solid var(--line);padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0}
+.chapters button.on{border-color:var(--hood);box-shadow:3px 3px 0 var(--leaf)}
+.chapters b{font-family:var(--f-display);font-size:10px;line-height:1.5}
+.chapters small{color:var(--dim);font-size:18px}
+.note{color:var(--dim);font-size:18px;margin:0}
+@media (max-width:560px){.chapters{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>SHREK: THE PIXEL SWAMP EDITION</h1>
+    <p>The whole movie, from memory. Subtitles only. Ogres have layers.</p>
+  </header>
+
+  <div class="screen" id="screen">
+    <canvas id="cv" width="320" height="180" aria-label="Pixel art movie"></canvas>
+    <div class="now" id="now"></div>
+    <div class="subs" id="subs" aria-live="polite"></div>
+    <button class="start" id="start" type="button"><b>&#9654; PRESS START</b><span id="runtime">Runtime 6:00 · subtitles on · swamp included</span></button>
+  </div>
+
+  <div class="transport">
+    <button id="play" type="button">PLAY</button>
+    <button id="prev" type="button" aria-label="Previous scene">&#9664;&#9664;</button>
+    <button id="next" type="button" aria-label="Next scene">&#9654;&#9654;</button>
+    <div class="track"><input id="scrub" type="range" min="0" max="360" step="0.1" value="0" aria-label="Seek"><div class="ticks" id="ticks"></div></div>
+    <span class="time" id="time">00:00 / 06:00</span>
+    <button id="fs" type="button">FULL</button>
+  </div>
+
+  <div class="chapters" id="chapters"></div>
+  <p class="note">Space plays and pauses. Arrow keys skip 10 seconds. N and P jump scenes. F goes fullscreen.</p>
+</div>
+
+<script>
+'use strict';
+// ============================================================ engine
+const W=320,H=180;
+const cv=document.getElementById('cv'),c=cv.getContext('2d');
+const SK='#f0c08e';
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const L=(a,b,p)=>a+(b-a)*clamp(p);
+const seg=(p,a,b)=>clamp((p-a)/(b-a));
+const ez=p=>{p=clamp(p);return p*p*(3-2*p)};
+const rng=s=>()=>(s=(s*16807)%2147483647)/2147483647;
+function hex(h){const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]}
+function mix(a,b,t){const A=hex(a),B=hex(b);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*clamp(t)).toString(16).padStart(2,'0')).join('')}
+function R(x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function disc(cx,cy,r,col){r=Math.round(r);for(let y=-r;y<=r;y++){const w=Math.round(Math.sqrt(Math.max(0,r*r-y*y)));R(cx-w,cy+y,w*2+1,1,col)}}
+function T(s,x,y,col='#fff',size=8,al='center',sh='#000'){c.font=size+'px "Press Start 2P", monospace';c.textAlign=al;c.textBaseline='middle';const o=Math.max(1,Math.round(size/8));if(sh){c.fillStyle=sh;c.fillText(s,x+o,y+o)}c.fillStyle=col;c.fillText(s,x,y)}
+function ln(x1,y1,x2,y2,col='#eef2ff',w=1){c.strokeStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()}
+function fade(a,col='#000'){a=clamp(a);if(a<=0)return;c.globalAlpha=a;R(0,0,W,H,col);c.globalAlpha=1}
+function alpha(a,fn){c.globalAlpha=clamp(a);fn();c.globalAlpha=1}
+function shake(k,t){c.translate(Math.round(Math.sin(t*90)*k),Math.round(Math.cos(t*70)*k))}
+function sfx(s,x,y,col='#ffe066',size=8){T(s,x,y,col,size,'center','#1a0a0a')}
+function heart(x,y,col='#ff4f7a'){R(x-3,y-2,2,2,col);R(x+1,y-2,2,2,col);R(x-3,y,6,1,col);R(x-2,y+1,4,1,col);R(x-1,y+2,2,1,col)}
+function note(x,y,col='#fff'){R(x,y,1,6,col);R(x-2,y+5,3,2,col);R(x+1,y,3,1,col)}
+function boom(x,y,r,t){const k=(t*20|0)%2;disc(x,y,r+k,'#ff4a1a');disc(x,y,r*.7,'#ff9a2e');disc(x,y,r*.38,'#fff3b0')}
+function qmark(x,y,col='#fff'){T('?',x,y,col,10)}
+
+// ---------------------------------------------------------------- scenery
+const SKIES={day:['#5fb0e8','#d6f0ff'],dusk:['#3a2a5e','#f5a05a'],night:['#081020','#22345a'],snow:['#7ac0f0','#f0f8ff']};
+const STARS=[];{const r=rng(3);for(let i=0;i<70;i++)STARS.push([r()*W|0,r()*100|0,r()])}
+function sky(m,t=0){const[a,b]=SKIES[m];for(let i=0;i<12;i++)R(0,i*15,W,15,mix(a,b,i/11));if(m==='night')for(const s of STARS)R(s[0],s[1],1,1,(s[2]+t*.4)%1<.85?'#fff':'#5a63a0')}
+function pine(x,base,h,col){const tw=Math.max(2,h/10|0);R(x-tw/2,base-h*.25,tw,h*.25,'#4a2e1a');for(let i=0;i<5;i++){const w=h*.55*(1-i/5),y=base-h*.25-(i+1)*h*.15;R(x-w/2,y,w,h*.17,col)}}
+const TREES=[];{const r=rng(11);for(let i=0;i<40;i++)TREES.push([i*18+r()*10,40+r()*50,r()])}
+function forest(m='day',t=0,sc=0,base=140){sky(m,t);const far=m==='night'?'#0f2a1e':'#4f7f5a',near=m==='night'?'#0a1f14':'#2f6a3a';for(const[x,h]of TREES){const xx=((x-sc*.4)%720+720)%720-40;if(xx<W+20)pine(xx,base-6,h*.8,far)}for(const[x,h,k]of TREES){const xx=((x*1.7-sc)%720+720)%720-40;if(k>.4&&xx<W+20)pine(xx,base+4,h*1.3,near)}R(0,base,W,H-base,m==='night'?'#1a2e16':'#5a9a3a');R(0,base,W,2,m==='night'?'#2a4422':'#7ab84a');R(0,base+18,W,10,m==='night'?'#3a3020':'#b8945a')}
+function cottageIn(t){R(0,0,W,125,'#8a5a32');for(let y=0;y<125;y+=8)R(0,y,W,1,'#6e4626');R(0,125,W,55,'#5a3a20');for(let x=0;x<W;x+=24)R(x,125,1,55,'#4a2e18');R(30,26,60,46,'#2e2219');c.save();c.beginPath();c.rect(33,29,54,40);c.clip();forest('day',t,0,80);c.restore();R(59,29,2,40,'#2e2219');R(200,104,100,24,'#e8dcc0');R(200,112,100,16,'#b03a4a');for(let i=0;i<5;i++)R(204+i*20,114,8,8,'#d8b84a');R(196,90,6,40,'#5a3a20');R(130,40,40,85,'#6a4224');R(160,82,4,4,'#d8b84a')}
+function cottageOut(t,m='day'){forest(m,t,0,150);R(110,70,110,80,'#c9a36a');for(let y=70;y<150;y+=8)R(110,y,110,1,'#a8844a');for(let i=0;i<14;i++)R(100+i*4,70-i*3,130-i*8,3,'#7a3a2a');R(150,104,26,46,'#5a3a20');R(122,86,20,18,'#ffe8a0');R(188,86,20,18,'#ffe8a0');R(196,40,10,20,'#6a6a6a')}
+function tape(y,t){for(let x=-20;x<W;x+=26){R(x+(t*4%26),y,20,5,'#f2d22a');T('X',x+(t*4%26)+10,y+3,'#111',4,'center',null)}}
+function sirens(t){alpha(.14,()=>R(0,0,W,H,(t*4|0)%2?'#ff2a2a':'#2a6aff'))}
+function mountain(t,sc=0){sky('snow',t);c.fillStyle='#c8d8e8';c.beginPath();c.moveTo(0,120);c.lineTo(80,40);c.lineTo(170,110);c.lineTo(250,30);c.lineTo(320,90);c.lineTo(320,180);c.lineTo(0,180);c.fill();c.fillStyle='#f4f8fc';c.beginPath();c.moveTo(-10,60);c.lineTo(330,170);c.lineTo(330,180);c.lineTo(-10,180);c.fill();for(let i=0;i<8;i++){const x=((i*60-sc)%400+400)%400-40;pine(x,70+x*.34+20,22,'#2f5a3a')}}
+function board(t){R(0,0,W,H,'#3a3a44');R(20,14,280,120,'#b88a5a');for(let i=0;i<60;i++)R((i*53)%280+20,(i*29)%120+14,2,2,'#a07a4a');R(0,140,W,40,'#2a2a30')}
+function meadow(t){sky('day',t);R(0,110,W,70,'#6ab84a');for(let i=0;i<40;i++)R((i*37)%W,112+(i*17)%60,2,2,['#ff6a8a','#ffe066','#ffffff'][i%3]);disc(250,170,60,'#7ac85a')}
+function gorge(t){sky('dusk',t);R(0,100,90,80,'#5a4a3a');R(230,90,90,90,'#5a4a3a');for(let i=0;i<10;i++)R(90+i*14,150+(i%3)*8,14,30,'#2a2018');ln(0,40,W,70,'#222');}
+
+// ---------------------------------------------------------------- the cast
+const OG='#8ab03a',OGD='#5a7a1a';
+const CH={
+ shrek:{kind:'ogre',fur:OG,top:'#d8d0b0',vest:'#6a4a2a',legs:'#6a5a3a',shoe:'#3a2a1a',s:1.3},
+ fiona:{kind:'fiona',top:'#3a8a4a',legs:'#3a8a4a',dress:'#3a8a4a',shoe:'#2a5a2a'},
+ fionaO:{kind:'fiona',fur:OG,ogre:1,top:'#3a8a4a',legs:'#3a8a4a',dress:'#3a8a4a',shoe:'#2a5a2a',s:1.15},
+ fionaW:{kind:'fiona',top:'#f4f0e8',legs:'#f4f0e8',dress:'#f4f0e8',shoe:'#ddd'},
+ fionaWO:{kind:'fiona',fur:OG,ogre:1,top:'#f4f0e8',legs:'#f4f0e8',dress:'#f4f0e8',shoe:'#ddd',s:1.15},
+ farq:{kind:'farq',top:'#a0202a',legs:'#2a2a3a',shoe:'#111',s:.8},
+ gingy:{kind:'gingy',fur:'#b8763a',top:'#b8763a',legs:'#b8763a',shoe:'#b8763a',s:.55},
+ pino:{kind:'pino',fur:'#d8a060',top:'#e8e0c0',legs:'#3a7a3a',shoe:'#5a3a1a',s:.8},
+ knight:{kind:'knight',fur:'#9aa0aa',top:'#9aa0aa',legs:'#7a808a',shoe:'#5a606a'},
+ robin:{kind:'robin',top:'#3a7a2a',legs:'#3a7a2a',shoe:'#5a3a1a'},
+ merry:{kind:'human',hair:'#6a4a2a',top:'#5a6a2a',legs:'#4a3a2a'},
+ villager:{kind:'human',hair:'#4a2a1a',top:'#8a6a4a',legs:'#4a4a3a'},
+ villager2:{kind:'human',hair:'#c9a46a',top:'#6a7a9a',legs:'#3a3a3a'},
+ oldlady:{kind:'granny',top:'#5a4a6a',legs:'#5a4a6a',dress:'#5a4a6a'},
+ mouse:{kind:'mouse',fur:'#9a9aa2',top:'#9a9aa2',legs:'#9a9aa2',s:.45},
+ wolf:{kind:'wolf',fur:'#8a8f99',top:'#f0e6f0',legs:'#4a4a52'},
+ pig:{kind:'pig',fur:'#f0a8b0',top:'#f0a8b0',legs:'#f0a8b0',shoe:'#e08890',s:.6},
+ priest:{kind:'human',hair:'#ddd',top:'#f4f0e8',legs:'#f4f0e8',dress:'#f4f0e8'},
+};
+function arm(kind,front,by,col,hand,sw=0){const x=front?4:-6;switch(kind){
+ case'up':R(x,-22+by,2,6,col);R(x,-24+by,2,2,hand);break;
+ case'out':if(front){R(4,-16+by,6,2,col);R(10,-16+by,2,2,hand)}else{R(-10,-16+by,6,2,col);R(-12,-16+by,2,2,hand)}break;
+ case'face':R(2,-18+by,2,3,col);R(1,-20+by,2,2,hand);break;
+ case'hip':R(x+(front?0:-1),-16+by,3,2,col);R(x+(front?2:-2),-14+by,2,3,col);break;
+ default:R(x,-16+by+sw,2,6,col);R(x,-10+by+sw,2,2,hand)}}
+function critter(x,y,ch,o={}){
+ const s=(o.s||2)*(ch.s||1),f=o.f||1,pose=o.pose||'stand',ph=o.ph||0;
+ c.save();c.translate(Math.round(x),Math.round(y));
+ if(o.rot){c.translate(0,-12*s);c.rotate(o.rot);c.translate(0,12*s)}
+ c.scale(f*s,s);
+ const fur=ch.fur||SK,top=ch.top,legs=ch.legs,shoe=ch.shoe||'#222',hand=ch.fur||SK;
+ let by=0;
+ if(ch.kind==='wolf'){R(-8,-12,3,7,fur);R(-9,-6,2,2,'#d8dce4')}
+ if(ch.kind==='mouse'){R(-9,-6,5,1,'#c89aa0')}
+ if(pose==='sit'){by=3;R(-3,-5,8,3,legs);R(4,-5,2,5,legs);R(4,-1,3,1,shoe)}
+ else if(pose==='jump'||pose==='kick'){R(-4,-8,2,5,legs);R(-5,-4,2,2,shoe);if(pose==='kick'){R(2,-9,7,2,legs);R(9,-9,2,2,shoe)}else{R(1,-8,2,4,legs);R(2,-5,3,2,shoe)}}
+ else{const a=(pose==='walk'||pose==='run')?Math.round(Math.sin(ph)*(pose==='run'?3:2)):0;R(-3+a,-8,2,7,legs);R(-3+a,-1,3,1,shoe);R(1-a,-8,2,7,legs);R(1-a,-1,3,1,shoe)}
+ const sw=(pose==='walk'||pose==='run')?Math.round(Math.sin(ph)*1.5):0;
+ const ak={up:['up','up'],point:['d','out'],hold:['out','out'],face:['d','face'],torch:['d','up'],hip:['hip','hip'],kick:['out','out'],flex:['up','up']}[pose]||['d','d'];
+ arm(ak[0],false,by,mix(ch.vest||top,'#000000',.3),mix(hand,'#000000',.3),-sw);
+ R(-4,-16+by,8,8,top);
+ if(ch.vest){R(-4,-16+by,2,8,ch.vest);R(2,-16+by,2,8,ch.vest);R(-4,-9+by,8,1,'#3a2a1a')}
+ if(ch.dress){R(-5,-9+by,10,6,ch.dress);if(ch.kind==='fiona')R(-5,-9+by,10,1,'#d8b84a')}
+ if(ch.kind==='farq'){R(-4,-16+by,8,2,'#d8b84a');R(-1,-14+by,2,6,'#d8b84a')}
+ if(ch.kind==='gingy'){R(-1,-14+by,2,1,'#e02a4a');R(-1,-12+by,2,1,'#2ad04a');R(-4,-9+by,8,1,'#fff')}
+ if(ch.kind==='knight')R(-1,-15+by,2,6,'#c0303a');
+ const hy=-23+by;
+ switch(ch.kind){
+  case'ogre':R(-4,hy,8,7,fur);R(-6,hy+1,2,1,fur);R(-7,hy,1,3,fur);R(4,hy+1,2,1,fur);R(6,hy,1,3,fur);R(-2,hy+1,2,1,OGD);R(1,hy+1,2,1,OGD);R(-1,hy+2,1,1,'#222');R(2,hy+2,1,1,'#222');R(2,hy+3,2,2,mix(fur,'#000000',.15));R(-1,hy+5,5,1,o.grin?'#fff':'#4a3a1a');if(o.roar){R(-1,hy+4,5,3,'#4a1a1a');R(-1,hy+4,5,1,'#fff')}break;
+  case'fiona':{const sk=ch.ogre?fur:SK;R(-3,hy,6,7,sk);if(ch.ogre){R(-5,hy+1,2,1,fur);R(3,hy+1,2,1,fur)}R(-3,hy-1,7,2,'#c8461d');R(-4,hy,2,3,'#c8461d');R(-5,hy+2,2,10,'#c8461d');R(-5,hy+11,2,2,'#e8a040');R(-1,hy-3,4,2,'#ffd23f');R(1,hy+3,1,1,'#222');R(-1,hy+3,1,1,'#222');R(0,hy+5,2,1,'#c0405a');break}
+  case'farq':R(-5,hy-3,11,10,'#1a1a1a');R(-2,hy+1,6,5,SK);R(0,hy+2,1,1,'#222');R(2,hy+2,1,1,'#222');R(1,hy+4,2,1,'#a04040');R(-5,hy+5,3,4,'#1a1a1a');break;
+  case'gingy':disc(0,hy+3,3.5,fur);R(-3,hy,6,1,'#fff');R(-1,hy+2,1,1,'#fff');R(2,hy+2,1,1,'#fff');R(-1,hy+5,4,1,'#fff');break;
+  case'pino':R(-3,hy,6,7,fur);R(3,hy+3,3+(o.nose||0),1,fur);R(-3,hy-2,7,2,'#c03030');R(1,hy+2,1,1,'#222');R(-1,hy+2,1,1,'#222');break;
+  case'knight':R(-3,hy-1,6,8,fur);R(-1,hy+3,5,1,'#222');R(-1,hy-3,2,2,'#c0303a');break;
+  case'robin':R(-3,hy,6,7,SK);R(-3,hy-2,7,3,'#3a7a2a');R(3,hy-5,1,4,'#c03030');R(0,hy+5,3,1,'#6a3a1a');R(1,hy+3,1,1,'#222');break;
+  case'mouse':R(-3,hy,6,6,fur);R(-4,hy-2,3,3,fur);R(2,hy-2,3,3,fur);R(-2,hy+2,6,1,'#111');R(3,hy+3,3,2,fur);R(6,hy+3,1,1,'#222');break;
+  case'wolf':R(-3,hy,6,7,fur);R(-3,hy-2,2,2,fur);R(1,hy-2,2,2,fur);R(3,hy+3,4,3,fur);R(6,hy+3,1,1,'#111');R(1,hy+2,1,1,'#ffd23f');R(-4,hy-2,8,3,'#f0e6f0');R(-5,hy+1,2,3,'#f0e6f0');break;
+  case'pig':R(-3,hy,6,7,fur);R(3,hy+3,3,2,'#e0889a');R(4,hy+3,1,1,'#7a3a4a');R(1,hy+2,1,1,'#222');R(-3,hy-1,2,2,fur);break;
+  case'granny':R(-3,hy,6,7,SK);R(-3,hy-1,6,2,'#d9d9de');R(-4,hy-2,8,2,'#5a4a6a');R(1,hy+3,1,1,'#222');R(3,hy+4,1,2,mix(SK,'#000000',.2));break;
+  default:R(-3,hy,6,7,SK);R(-3,hy-1,6,2,ch.hair||'#4a2a1a');R(-3,hy+1,1,2,ch.hair||'#4a2a1a');R(1,hy+3,1,1,'#222');R(-1,hy+3,1,1,'#222');
+ }
+ arm(ak[1],true,by,ch.vest||top,hand,sw);
+ if(pose==='torch'){R(4,-32+by,1,8,'#6a4a2a');R(3,-35+by,3,3,(o.t*10|0)%2?'#ff8a1f':'#ffd23f')}
+ if(o.fork){R(-7,-34+by,1,26,'#6a4a2a');R(-9,-35+by,5,1,'#999');R(-9,-38+by,1,3,'#999');R(-7,-38+by,1,3,'#999');R(-5,-38+by,1,3,'#999')}
+ c.restore();
+}
+function donkey(x,y,s=2,f=1,t=0,o={}){const fur='#7a7a82',lt='#c8c8cc';c.save();c.translate(Math.round(x),Math.round(y));if(o.rot)c.rotate(o.rot);c.scale(s*f,s);
+ const w=o.walk?Math.round(Math.sin(t*12)*2):0;for(const[lx,k]of[[-8,1],[-5,-1],[4,1],[7,-1]]){R(lx+w*k,-6,2,6,fur);R(lx+w*k,-1,2,1,'#2a2a2a')}
+ R(-11,-12,2,5,fur);R(-12,-8,2,3,'#2a2a2a');R(-9,-13,18,8,fur);R(-7,-7,14,2,lt);R(6,-19,5,8,fur);R(5,-20,2,8,'#3a3a40');R(8,-23,9,6,fur);R(13,-20,5,4,lt);R(17,-19,1,1,'#222');
+ const ew=o.ears?Math.round(Math.sin(t*10)):0;R(8,-29+ew,2,6,fur);R(11,-29-ew,2,6,fur);R(8,-28+ew,1,4,'#c8a0a0');R(11,-28-ew,1,4,'#c8a0a0');R(11,-22,2,2,'#fff');R(12,-22,1,1,'#222');
+ if(o.talk&&(t*8|0)%2){R(13,-17,5,3,'#5a1a1a');R(13,-17,5,1,'#fff')}else{R(13,-16,5,1,'#fff')}
+ if(o.fly)for(let i=0;i<5;i++)R(-12+i*6+Math.sin(t*9+i)*2,2+((t*20+i*5)%8),1,1,'#ffe8a0');
+ c.restore()}
+function dragon(x,y,s=1,f=1,t=0,o={}){const col='#c0304a',dk='#7a1a3a';c.save();c.translate(Math.round(x),Math.round(y));c.scale(s*f,s);
+ const wy=Math.round(Math.sin(t*(o.fly?9:3))*6);c.fillStyle='#5a2a5a';c.beginPath();c.moveTo(-6,-32);c.lineTo(-44,-64+wy);c.lineTo(-30,-40+wy/2);c.lineTo(-18,-28);c.fill();
+ R(-40,-16,18,5,col);R(-46,-20,8,4,col);R(-50,-22,6,3,dk);disc(0,-20,18,col);disc(5,-15,11,'#e8a080');R(-12,-6,7,6,col);R(8,-6,7,6,col);R(-13,-1,9,1,'#e8d8a0');R(7,-1,9,1,'#e8d8a0');
+ R(11,-46,8,24,col);R(10,-58,22,13,col);R(28,-54,6,8,col);R(31,-53,1,1,'#222');R(13,-62,2,4,'#e8d8a0');R(17,-63,2,5,'#e8d8a0');R(20,-56,5,4,'#fff');R(22,-55,2,2,o.love?'#ff4f7a':'#7a3a00');R(19,-58,1,2,'#111');R(21,-59,1,2,'#111');R(23,-58,1,2,'#111');
+ if(o.love)heart(22,-70+((t*10)%6));
+ if(o.fire){for(let i=0;i<7;i++){const k=(t*6+i*.3)%1;disc(36+i*9,-48+Math.sin(t*20+i)*2,2+i*.8,['#fff3b0','#ffd23f','#ff8a1f','#ff4a1a'][i%4])}}
+ if(o.chain){R(-6,-26,12,3,'#5a5a62');for(let i=0;i<8;i++)R(-10-i*5,-24+i*3,3,2,'#8a8a92')}
+ c.restore()}
+function swamp(m='day',t=0){sky(m,t);const tr=m==='night'?'#12261a':'#2f4a26';for(let i=0;i<7;i++){const x=i*52+10;R(x,40,6,90,'#3a2a1a');disc(x+3,40,18,tr);disc(x-8,52,12,tr)}R(0,128,W,52,m==='night'?'#26301a':'#4a5a2a');R(0,128,W,2,'#5a6a32');c.fillStyle=m==='night'?'#1a2a2a':'#3a5a4a';c.beginPath();c.ellipse(70,150,52,10,0,0,7);c.fill();for(let i=0;i<4;i++){const k=(t*.8+i/4)%1;R(40+i*18,148-k*4,2,2,'#7a9a7a')}
+ R(196,74,86,66,'#6a4a2a');R(190,66,98,12,'#4a6a2a');R(200,60,30,8,'#4a6a2a');R(270,46,8,24,'#5a4a3a');R(232,108,18,32,'#3a2a1a');R(244,122,2,2,'#d8b84a');R(206,90,14,12,m==='night'?'#ffe8a0':'#2a1a10');
+ R(150,108,2,28,'#5a3a1a');R(138,100,30,10,'#a0805a');T('KEEP OUT',153,105,'#5a1a1a',4,'center',null);R(290,110,2,26,'#5a3a1a');R(276,102,32,10,'#a0805a');T('OGRE',292,107,'#5a1a1a',4,'center',null);
+ R(10,84,22,46,'#7a5a3a');R(8,80,26,6,'#5a3a1a');R(19,90,4,4,'#2a1a10')}
+function duloc(t){sky('day',t);R(0,130,W,50,'#c8c0a8');for(let y=132;y<H;y+=6)for(let x=(y/6%2)*6;x<W;x+=12)R(x,y,11,1,'#b0a890');R(110,0,100,130,'#e8e0d0');for(let i=0;i<5;i++)R(112+i*20,0,10,4,'#d0c8b8');R(140,-10,40,140,'#f0e8d8');R(154,60,12,20,'#2a3a6a');R(150,104,20,26,'#5a3a2a');for(const x of[90,230])R(x,40,20,90,'#e0d8c8');for(const x of[90,230]){c.fillStyle='#3a5a9a';c.beginPath();c.moveTo(x-2,40);c.lineTo(x+10,18);c.lineTo(x+22,40);c.fill()}for(let i=0;i<8;i++){disc(10+i*40,126,8,'#3a8a3a');R(8+i*40,126,4,6,'#5a3a1a')}}
+function arena(t,cheer=1){duloc(t);R(0,70,W,60,'#8a6a4a');for(let r=0;r<3;r++)crowdRow(80+r*14,t,r,cheer);R(0,128,W,4,'#6a4a2a');R(0,132,W,48,'#d8c890');for(let i=0;i<6;i++){R(20+i*54,58,12,16,['#c0303a','#3a5a9a'][i%2]);R(20+i*54,58,1,30,'#5a3a1a')}}
+function crowdRow(y,t,seed,cheer){const tops=['#c0392b','#2e86c1','#27ae60','#f39c12','#8e44ad','#7f8c8d'];for(let i=0;i<22;i++){const x=i*15+(seed*5)%15,b=Math.round(Math.sin(t*6*cheer+i+seed)*cheer);R(x,y+b,9,8,tops[(i+seed)%6]);R(x+2,y-4+b,5,5,SK)}}
+function keep(t){for(let i=0;i<12;i++)R(0,i*15,W,15,mix('#2a0a10','#a03020',i/11));R(0,150,W,30,'#e05a1a');for(let i=0;i<10;i++){const k=(t*.7+i/10)%1;disc((i*37)%W,170-k*20,2,'#ffd23f')}R(220,20,80,130,'#2a2228');R(230,0,20,40,'#2a2228');R(270,8,20,32,'#2a2228');R(244,90,14,20,'#ff8a1f');R(0,100,60,80,'#3a2a2a')}
+function bridge(t,sway=1){const sw=Math.sin(t*2)*3*sway;ln(60,100,220,104+sw,'#8a6a4a');ln(60,90,220,94+sw,'#8a6a4a');for(let i=0;i<18;i++){const x=62+i*9,y=101+Math.sin(i/17*Math.PI)*10+sw*i/17;R(x,y,7,3,i===9?'#2a1a10':'#a07a4a')}}
+function windmill(t,m){sky(m,t);if(m==='night')disc(260,30,9,'#f3eccc');else disc(250,110,24,'#ffb04a');R(0,130,W,50,m==='night'?'#1a2a1a':'#4a6a2a');c.fillStyle=m==='night'?'#2a3a2a':'#5a7a3a';c.beginPath();c.ellipse(140,135,110,24,0,0,7);c.fill();R(120,70,40,70,'#7a6a5a');c.fillStyle='#5a4a3a';c.beginPath();c.moveTo(116,70);c.lineTo(140,50);c.lineTo(164,70);c.fill();R(134,110,12,20,'#3a2a1a');R(144,84,8,8,m==='night'?'#ffe8a0':'#2a2a2a');c.save();c.translate(140,62);c.rotate(t*.6);for(let i=0;i<4;i++){c.rotate(Math.PI/2);R(0,-2,40,4,'#a08a6a');R(10,-6,28,4,'#c8b89a')}c.restore()}
+function cathedral(t){R(0,0,W,H,'#4a4658');for(let y=0;y<H;y+=10)for(let x=(y/10%2)*10;x<W;x+=20)R(x,y,19,9,'#555166');c.fillStyle='#1a1a24';c.beginPath();c.moveTo(110,110);c.lineTo(110,40);c.quadraticCurveTo(160,0,210,40);c.lineTo(210,110);c.fill();const cols=['#d0202f','#2b4fc4','#f2c23a','#2e9a5a','#9a3ab0'];for(let i=0;i<10;i++)for(let j=0;j<8;j++){const x=112+i*10,y=40+j*9;if(y>110)continue;R(x,y,8,7,cols[(i*3+j)%5])}R(0,140,W,40,'#3a2a3a');R(130,140,60,40,'#8a1a2a');for(let i=0;i<3;i++){R(10,120+i*14,90,6,'#5a3a22');R(220,120+i*14,90,6,'#5a3a22')}}
+function chamber(t){R(0,0,W,H,'#2a2228');for(let y=0;y<H;y+=10)for(let x=(y/10%2)*10;x<W;x+=20)R(x,y,19,9,'#352c33');R(0,140,W,40,'#1a1418');R(110,120,120,8,'#6a4a2a');R(116,128,4,20,'#4a2a1a');R(220,128,4,20,'#4a2a1a');disc(40,40,5,(t*8|0)%2?'#ff8a1f':'#ffd23f');R(39,45,2,10,'#4a3a2a')}
+function mirror(x,y,t,face=1){R(x-22,y-30,44,60,'#c9a35c');R(x-18,y-26,36,52,'#7ab0d0');alpha(.4+.2*Math.sin(t*3),()=>R(x-18,y-26,36,52,'#e8f4ff'));if(face){alpha(.7,()=>{disc(x,y-2,10,'#dde8f0');R(x-6,y-5,4,2,'#2a3a5a');R(x+2,y-5,4,2,'#2a3a5a');R(x-4,y+4,8,1,'#2a3a5a')})}}
+function book(t,ch,title){R(0,0,W,H,'#2a1a10');for(let i=0;i<W;i+=8)R(i,0,1,H,'#33200f');c.save();c.translate(160,92);const k=ez(seg(t,0,1.2));c.scale(k,1);R(-120,-64,240,128,'#6a3a1a');R(-114,-60,112,120,'#f4ead0');R(2,-60,112,120,'#f4ead0');R(-2,-60,4,120,'#c8b890');c.restore();if(t>1){T(ch,214,62,'#8a5a2a',6,'center',null);T(title,214,92,'#3a5a1a',title.length>12?7:9,'center',null);R(160+14,104,80,1,'#8a5a2a');R(62,40,20,20,'#3a7a2a');T(ch.slice(-1),72,51,'#f4ead0',10,'center',null);for(let i=0;i<8;i++)R(62,70+i*8,80,1,'#c8b890')}}
+function notes(t,n=5,col='#ffe066'){for(let i=0;i<n;i++)note((i*67+t*30)%W,30+((i*41+t*20)%90),col)}
+function vines(){for(let i=0;i<W;i+=12){R(i,0,2,6+(i*7)%10,'#3a6a2a');R(i-2,4+(i*7)%10,5,3,'#4a8a3a')}}
+
+// ============================================================ the movie
+const SCENES=[];let ACT=0,CUE=-1;
+function S(lines,draw,o={}){SCENES.push({film:ACT,lines,draw,min:o.min||0})}
+
+// ------------------------------------------------ ACT I : ONCE UPON A TIME
+ACT=0;
+S(['[this is all of Shrek, from memory]','[there is no audio. you are humming the opening song anyway. you\'re doing it right now.]'],(t,p)=>{R(0,0,W,H,'#000');alpha(seg(p,0,.2)*(1-seg(p,.85,1)),()=>{T('A PIXEL PICTURES',W/2,74,'#e8e8e8',8);T('PRESENTATION',W/2,90,'#e8e8e8',8)})},{min:7});
+S(['NARRATOR: Once upon a time, there was a lovely princess, locked away in a tower...','NARRATOR: ...awaiting true love\'s first kiss.','SHREK: Like that\'s ever gonna happen.','[he tears out the page. we do not discuss what the page is for.]'],(t,p)=>{R(0,0,W,H,'#2a1a10');R(40,20,240,140,'#6a3a1a');R(46,24,112,132,'#f4ead0');R(162,24,112,132,'#f4ead0');T('ONCE UPON',102,50,'#3a2a1a',6,'center',null);T('A TIME...',102,62,'#3a2a1a',6,'center',null);for(let i=0;i<8;i++)R(56,80+i*8,92,1,'#c8b890');R(190,40,60,50,'#c8b0d8');disc(220,60,8,'#e8d8f0');const tear=seg(p,.6,.75);c.save();c.translate(218+tear*100,90-tear*60);c.rotate(tear*1.2);R(-56,-66,112,132,'#f4ead0');R(-28,-50,60,50,'#c8b0d8');c.restore();if(p>.5){const hx=L(330,260,seg(p,.5,.6));R(hx,70,60,24,OG);R(hx-4,72,6,6,OG);R(hx-4,82,6,6,OG)}},{min:9});
+S(['[♪ THE song. you know the one. it is playing in your head. ♪]','[the swamp morning routine: a mud shower, a toothbrush made of... something]','[he farts in the pond. a fish floats up. breakfast.]','[he makes a candle out of earwax. he is thriving.]'],(t,p)=>{swamp('day',t);alpha(seg(p,.05,.25)*(1-seg(p,.3,.4)),()=>{T('SHREK',W/2,40,OG,20,'center','#2a3a1a');T('(2001)',W/2,64,'#fff',8)});const sx=p<.5?L(240,90,seg(p,.3,.5)):90;critter(sx,150,CH.shrek,{pose:p<.5?'walk':p<.75?'flex':'stand',ph:t*8,grin:p>.6});if(p>.5&&p<.75){for(let i=0;i<5;i++)R(60+i*6,140-((t*20+i*4)%10),2,2,'#9aaa5a');R(70,140,8,3,'#c0c0c0');sfx('BLUB',70,120,'#cde',6)}if(p>.75){R(118,118,3,6,'#e8c060');R(118,116,3,2,(t*10|0)%2?'#ff8a1f':'#ffd23f')}});
+S(['[night. villagers with torches and pitchforks. hunting the ogre.]','VILLAGER: Think it\'s in there? Let\'s get it!','SHREK: This is the part where you run away.','[they run away. very quickly.]'],(t,p)=>{swamp('night',t);const run=p>.7;for(let i=0;i<4;i++){const x=run?L(60+i*28,-60,seg(p,.7,.9)):60+i*28;critter(x,160,i%2?CH.villager:CH.villager2,{pose:i%2?'torch':'stand',fork:!(i%2),t,f:run?-1:1,ph:t*12})}if(p>.4){critter(250,160,CH.shrek,{f:-1,roar:p>.45&&p<.72,pose:p>.45&&p<.72?'up':'stand'});if(p>.45&&p<.72)sfx('RAAAAH',230,70,'#ffd23f',10)}});
+S(['[across the kingdom, Lord Farquaad\'s guards are buying up fairy tale creatures]','OLD LADY: I\'ve got a talking donkey!','DONKEY: I\'m just a regular donkey. I don\'t talk.','[a fairy sprinkles dust on him. he floats.]','DONKEY: I can FLY!','[the dust runs out. mid-air. he runs and hides behind the first ogre he sees.]'],(t,p)=>{forest('day',t,0);R(200,90,90,40,'#a0805a');T('CREATURES',245,100,'#3a1a1a',5,'center',null);T('WANTED',245,112,'#3a1a1a',5,'center',null);for(let i=0;i<2;i++)critter(260+i*30,166,CH.knight,{f:-1});critter(80,166,CH.oldlady);const fy=p>.4&&p<.75?-Math.sin(seg(p,.4,.75)*Math.PI)*60:0;donkey(140,166+fy,2,1,t,{talk:p>.2,fly:p>.4&&p<.75,walk:p>.8});if(p>.35&&p<.45)for(let i=0;i<12;i++)R(130+(i*13)%30,110+(i*7)%40,1,1,'#ffe8a0')});
+S(['DONKEY: You\'re an ogre! That is so awesome. Can I come with you?','SHREK: No.','DONKEY: [talks for six straight minutes without breathing]','SHREK: ...Fine. One night.'],(t,p)=>{forest('dusk',t,t*12);critter(130,166,CH.shrek,{pose:'walk',ph:t*8});donkey(200,166,2,-1,t,{talk:1,walk:1,ears:1});if(p>.5&&p<.75)for(let i=0;i<3;i++)T('blah',200+i*24,70-i*10,'#fff',6)});
+S(['SHREK: What are you doing in my swamp?!','[every fairy tale creature in the kingdom has been dumped in his swamp]','[the Three Blind Mice on his table. the Big Bad Wolf in his bed.]','[seven dwarves set Snow White\'s glass coffin on his kitchen table]','PINOCCHIO: Lord Farquaad kicked us out!','SHREK: Then I\'m going to go see this Farquaad.'],(t,p)=>{swamp('night',t);for(let i=0;i<3;i++)critter(40+i*16,160,CH.mouse,{f:1,ph:t*12+i,pose:'walk'});for(let i=0;i<3;i++)critter(110+i*12,166,CH.pig);critter(170,166,CH.pino,{nose:p>.7?6:0});critter(270,150,CH.wolf,{f:-1,pose:'sit'});R(60,110,40,10,'#9fd3f0');alpha(.6,()=>R(60,104,40,6,'#e8f4ff'));critter(220,166,CH.shrek,{f:-1,roar:p<.2,pose:p<.2?'up':'hip'});donkey(300,170,1.4,-1,t)});
+S(['FARQUAAD: Where are the other fairy tale creatures?','GINGY: Eat me!','[Farquaad threatens him with... a glass of milk]','GINGY: Not the gumdrop buttons!','FARQUAAD: Do you know... the Muffin Man?','GINGY: She\'s married to the Muffin Man.'],(t,p)=>{chamber(t);critter(170,120,CH.gingy,{rot:-Math.PI/2,s:2});critter(250,166,CH.farq,{f:-1,pose:p>.3&&p<.5?'point':'stand'});if(p>.3&&p<.55){R(206,118,8,12,'#e8f0f4');R(207,120,6,9,'#ffffff')}for(let i=0;i<2;i++)critter(60+i*30,166,CH.knight)});
+S(['MAGIC MIRROR: Bachelorette number one: a mentally abused shut-in from a kingdom far, far away. Cinderella!','MAGIC MIRROR: Number two: she lives with seven men, but she\'s not easy. Snow White!','MAGIC MIRROR: And number three: a fiery redhead, in a castle guarded by a dragon. Princess Fiona!','[Farquaad picks Fiona instantly. he does not plan to rescue her himself.]','FARQUAAD: Some of you may die. But it\'s a sacrifice I am willing to make.'],(t,p)=>{R(0,0,W,H,'#1a1028');for(let i=0;i<20;i++)R((i*37)%W,(i*23)%90,2,2,(t*4+i|0)%2?'#ffd23f':'#ff4a8a');mirror(160,80,t,CUE<0||CUE>2);if(CUE>=0&&CUE<3){c.save();c.beginPath();c.rect(142,54,36,52);c.clip();const who=CUE;critter(160,108,who===2?CH.fiona:{kind:'human',hair:who?'#111':'#e8c060',top:who?'#2a4a9a':'#9ac0e8',legs:'#333',dress:who?'#e8c040':'#9ac0e8'},{s:1.6});c.restore()}critter(60,166,CH.farq,{pose:p>.8?'point':'hip'});if(CUE>=0&&CUE<3)T(['#1','#2','#3'][CUE],160,130,'#ffd23f',8)});
+S(['[Duloc: a perfect city. trimmed hedges. terrified citizens.]','[the information booth is a choir of puppets singing the rules of Duloc]','DONKEY: Let\'s do that again!','[a camera takes their photo at the end. like a theme park ride. hmm.]'],(t,p)=>{duloc(t);R(40,100,60,30,'#e8d8f0');R(40,96,60,4,'#d8b84a');for(let i=0;i<5;i++){const b=Math.round(Math.sin(t*8+i)*2);R(46+i*11,108+b,6,10,['#c03030','#3050c0','#30a050','#d0a030','#a030a0'][i]);R(47+i*11,104+b,4,4,SK)}if(p>.25&&p<.5)notes(t,5,'#fff');critter(180,166,CH.shrek,{pose:'hip'});donkey(240,166,2,-1,t,{talk:p>.5&&p<.75,ears:1});if(p>.75&&p<.8)fade(.9,'#fff')});
+S(['FARQUAAD: Brave knights! The champion will rescue Princess Fiona!','[then an ogre walks into the arena. everyone boos.]','[wrestling. Shrek vs. every knight in Duloc.]','[somebody yells "give him the chair!" he gets the chair.]','FARQUAAD: Congratulations, ogre. You\'ve won... a quest.','SHREK: Fine. I rescue the princess, I get my swamp back.'],(t,p)=>{arena(t,p>.3?3:1);R(230,40,60,30,'#a0202a');critter(260,70,CH.farq,{f:-1,s:1.2,pose:p<.15||p>.7?'point':'stand'});const k=seg(p,.3,.7);for(let i=0;i<4;i++){const fl=k>(i+1)/5;critter(60+i*34+(fl?Math.sin(t*3+i)*10:0),166-(fl?30+Math.abs(Math.sin(t*4+i))*30:0),CH.knight,{f:-1,rot:fl?t*5+i:0})}critter(150,166,CH.shrek,{pose:p>.3&&p<.7?((t*3|0)%2?'up':'kick'):'hip'});if(p>.5&&p<.62){R(196,120,12,2,'#7a5a3a');R(196,120,2,14,'#7a5a3a');R(206,120,2,14,'#7a5a3a');R(196,126,12,2,'#7a5a3a')}donkey(110,170,1.4,1,t,{talk:p>.3&&p<.7})});
+
+// ------------------------------------------------ ACT II : LAYERS
+ACT=1;
+S([],(t,p)=>book(t,'CHAPTER II','LAYERS'),{min:5});
+S(['SHREK: Ogres are like onions.','DONKEY: They stink?','SHREK: Layers! Onions have layers. Ogres have layers.','DONKEY: You know what everybody likes? Parfaits.','[the onion debate lasts most of the walk]'],(t,p)=>{meadow(t);critter(130,166,CH.shrek,{pose:'walk',ph:t*8});donkey(210,166,2,-1,t,{talk:1,walk:1,ears:1});if(p<.5){disc(160,70,10,'#e8d8a0');for(let i=0;i<3;i++)ln(154+i*4,62,156+i*4,78,'#c8b880');R(158,58,4,4,'#4a8a3a')}else{R(150,58,20,26,'#f4f0f0');for(let i=0;i<4;i++)R(150,60+i*6,20,3,['#f4f0f0','#c04a6a','#f4e0a0','#c04a6a'][i]);R(158,52,4,6,'#c03030')}});
+S(['[the dragon\'s keep: a castle in a volcano. a rope bridge over lava.]','SHREK: Don\'t look down.','DONKEY: [looks down]','[Shrek walks him across backwards. they make it. the bridge is less happy.]'],(t,p)=>{keep(t);bridge(t);const k=seg(p,.4,.95);critter(L(70,200,k),100,CH.shrek,{s:1.4,f:-1,pose:'hold'});donkey(L(90,220,k),101,1.3,1,t,{rot:p>.25&&p<.4?.2:0,ears:1});if(p>.25&&p<.45)sfx('!!!',100,70,'#fff',8)});
+S(['[Donkey meets the dragon. the dragon is a girl. a very large girl.]','DONKEY: What large... teeth you have! I mean white! Sparkling!','[she falls in love. eyelashes. heart eyes. smoke rings.]','DONKEY: Shrek! HELP!'],(t,p)=>{R(0,0,W,H,'#2a1a1a');for(let i=0;i<40;i++)R((i*31)%W,(i*17)%H,10,6,'#3a2424');R(0,150,W,30,'#1a1010');for(let i=0;i<20;i++)R((i*29)%W,150+(i%3)*6,6,3,'#c9a35c');dragon(210,160,1.6,-1,t,{love:p>.4,fire:p<.15});donkey(80,166,2,1,t,{talk:p>.15,ears:1})});
+S(['[Shrek finds Fiona in the tower, posed asleep for her big moment]','FIONA: Shouldn\'t this be a romantic moment? You\'re supposed to sweep me off my feet!','[he throws her over his shoulder like a sack of onions]','[they grab Donkey and run. the dragon breathes fire on everything.]','[the dragon ends up chained by her own collar. she is very sad about it.]'],(t,p)=>{if(p<.5){R(0,0,W,H,'#3a2a32');R(120,30,80,50,'#2a3a6a');for(let i=0;i<3;i++)R(124+i*26,34,20,42,'#4a5a8a');R(110,130,100,14,'#e8d8f0');R(110,128,100,4,'#c03050');critter(160,132,CH.fiona,{rot:-Math.PI/2});if(p>.15)critter(80,166,CH.shrek,{s:1.2,pose:p>.3?'hold':'stand'});if(p>.15&&p<.3)T('...',190,100,'#fff',8)}else{keep(t);bridge(t,2);const k=seg(p,.5,.85);dragon(L(30,110,k),110,1,1,t,{fire:p<.82,chain:p>.85,love:p>.85});critter(L(80,240,k),100,CH.shrek,{s:1.3,pose:'run',ph:t*12});critter(L(76,236,k),78,CH.fiona,{s:1.1,rot:Math.PI/2});donkey(L(100,270,k),101,1.2,1,t,{walk:1,ears:1})}});
+S(['FIONA: Take off your helmet. I want to see my rescuer\'s face.','[he\'s an ogre]','FIONA: You\'re... an OGRE?','SHREK: Oh, you were expecting Prince Charming?','[she refuses to walk. he carries her. they bicker the entire way.]'],(t,p)=>{forest('day',t,p>.7?t*10:0);if(p<.2){critter(150,166,{kind:'knight',fur:'#9aa0aa',top:'#d8d0b0',legs:'#6a5a3a',s:1.3})}else critter(150,166,CH.shrek,{pose:p>.7?'hold':'hip',ph:t*8});if(p>.7)critter(150,124,CH.fiona,{rot:Math.PI/2,s:1.6});else critter(220,166,CH.fiona,{f:-1,pose:p>.3&&p<.5?'face':'stand'});donkey(70,166,1.6,1,t,{walk:p>.7})});
+S(['[Robin Hood arrives with a song to "rescue" Fiona from the ogre]','[Fiona kung-fus all the Merry Men. slow motion. hair stays perfect.]','SHREK: ...Whoa.','[also: she sings at a bluebird until it explodes. she uses the eggs for breakfast.]'],(t,p)=>{forest('day',t,0);const fight=p>.25&&p<.65;critter(160,166-(fight&&(t*3|0)%2?14:0),CH.fiona,{pose:fight?((t*3|0)%2?'kick':'point'):'stand',f:(t*2|0)%2?1:-1});if(fight)alpha(.12,()=>R(0,0,W,H,'#7ad0ff'));critter(240,166,CH.robin,{f:-1,pose:p<.25?'up':'stand',rot:fight?-Math.PI/2*seg(p,.3,.4):0});for(let i=0;i<3;i++)critter(60+i*24,166,CH.merry,{rot:fight?Math.PI/2*seg(p,.35+i*.08,.45+i*.08):0});critter(290,166,CH.shrek,{f:-1});if(p>.75){if(p<.85){R(150,80,6,5,'#4a8ad0');notes(t,3,'#fff')}else{for(let i=0;i<10;i++)R(153+Math.cos(i)*(p-.85)*200,82+Math.sin(i)*(p-.85)*200,2,2,'#4a8ad0');sfx('POP',150,70,'#fff',8)}}});
+S(['[a romance montage. they make balloon animals out of a frog and a snake.]','[a weed-rat dinner by the fire. Fiona burps. Shrek is in love.]','[Donkey watches all of this, deeply confused]'],(t,p)=>{forest('dusk',t,0);for(let i=0;i<3;i++){const k=(t*.15+i/3)%1;disc(80+i*80,L(140,10,k),6,'#5a9a3a');R(78+i*80,L(140,10,k)+6,4,4,'#5a9a3a')}disc(160,160,8,'#ff8a1f');disc(160,158,5,'#ffd23f');R(140,140,40,2,'#6a4a2a');R(156,136,8,4,'#7a5a3a');critter(120,166,CH.shrek,{pose:'sit',grin:1});critter(200,166,CH.fiona,{f:-1,pose:'sit'});if(p>.4&&p<.6)sfx('BURRRP',200,90,'#ffe066',8);if(p>.5)heart(160,100-((t*10)%20));donkey(290,170,1.4,-1,t,{ears:1});if(p>.7)T('?',290,120,'#fff',10)});
+
+// ------------------------------------------------ ACT III : TRUE LOVE'S KISS
+ACT=2;
+S([],(t,p)=>book(t,'CHAPTER III',"TRUE LOVE'S KISS"),{min:5});
+S(['[sunset. Fiona insists they stop for the night. right now. right this second.]','[Donkey wanders into the windmill and finds... an ogress]','DONKEY: AAAH! The ogre ate the princess!','FIONA: It\'s me! It\'s a curse. By day one way, by night another.','[only true love\'s kiss will break it. and she\'s marrying Farquaad tomorrow.]'],(t,p)=>{if(p<.25){windmill(t,'dusk');critter(80,166,CH.fiona,{pose:'point'});critter(140,166,CH.shrek);donkey(200,170,1.4,-1,t)}else{R(0,0,W,H,'#2a2018');R(0,140,W,40,'#3a2a1a');for(let i=0;i<6;i++)R(20+i*50,60+(i%2)*20,30,4,'#5a4a3a');disc(260,50,5,'#ffd23f');critter(170,166,CH.fionaO,{f:-1,pose:p>.5?'face':'stand'});donkey(90,166,2,1,t,{talk:p>.35&&p<.55,ears:1,rot:p>.35&&p<.5?-.15:0})}});
+S(['FIONA: Who could ever love a beast so hideous and ugly?','[Shrek walks up with a sunflower and hears ONLY that part]','[he thinks she means him]','[a classic misunderstanding. the oldest trick in the storybook.]'],(t,p)=>{windmill(t,'night');critter(250,166,CH.shrek,{f:-1,pose:p<.4?'point':'stand'});R(232,128,2,12,'#3a7a2a');disc(233,126,4,'#ffd23f');disc(233,126,1,'#5a3a1a');if(p>.6){R(0,0,W,H,'#00000055');T('...',250,100,'#fff',8)}if(p<.3)T('"...UGLY..."',140,80,'#ffe8a0',6)});
+S(['[morning. Fiona is human again, ready to tell Shrek everything]','[but Shrek is cold. and he\'s brought Farquaad.]','FARQUAAD: Princess Fiona. Will you marry me?','FIONA: ...Let\'s get married today. Before sunset.','[Farquaad\'s guards escort her away. Shrek walks home. Donkey too, separately.]'],(t,p)=>{windmill(t,'day');for(let i=0;i<2;i++)critter(220+i*28,166,CH.knight,{f:-1});R(170,128,30,22,'#f4f0f0');R(176,150,4,16,'#f4f0f0');R(192,150,4,16,'#f4f0f0');R(196,120,6,12,'#f4f0f0');critter(186,128,CH.farq,{f:-1,pose:p>.4&&p<.6?'point':'stand'});critter(120,166,CH.fiona,{f:1,pose:p>.6?'face':'stand'});critter(L(60,-40,seg(p,.8,1)),166,CH.shrek,{f:p>.8?-1:1,pose:p>.8?'walk':'hip',ph:t*8})});
+S(['[back at the swamp. Shrek builds a wall down the middle. Donkey is on the other side.]','DONKEY: You cut me off! Like you always do!','DONKEY: She wasn\'t talking about you. She was talking about... somebody else.','SHREK: ...We have to stop that wedding.'],(t,p)=>{swamp('day',t);for(let i=0;i<10;i++)R(150,80+i*8,14,7,(i%2)?'#8a8a8a':'#7a7a7a');critter(100,150,CH.shrek,{f:1,pose:p<.6?'hip':'point'});donkey(230,166,2,-1,t,{talk:p>.15&&p<.75,ears:1})});
+S(['[Donkey whistles. he brought backup: his girlfriend, the dragon.]','[they fly to Duloc. Shrek is hanging on. Donkey is riding on her head.]'],(t,p)=>{sky('day',t);for(let i=0;i<6;i++){const x=((i*80-t*120)%480+480)%480-40;disc(x,40+(i%3)*30,12,'#ffffff');disc(x+12,44+(i%3)*30,9,'#ffffff')}const y=100+Math.sin(t*2)*10;dragon(140,y+40,1.3,1,t,{fly:1});critter(130,y+2,CH.shrek,{pose:'up',s:1.6});donkey(162,y-38,1.2,1,t,{ears:1,talk:1})});
+S(['PRIEST: If anyone objects, speak now or forever hold your peace.','SHREK: I OBJECT!','[the sun sets. Fiona turns into an ogre in front of everyone.]','FARQUAAD: Ugh! It\'s disgusting! Guards, take her away!','[Shrek whistles. the dragon smashes through the stained glass.]','[the dragon eats Farquaad. one bite. the crown bounces.]','DONKEY: Celebrity marriages. They never last.'],(t,p)=>{c.save();if(p>.58&&p<.66)shake(3,t);cathedral(t);const og=p>.3;critter(170,150,og?CH.fionaWO:CH.fionaW,{f:-1,pose:og&&p<.42?'face':'stand'});if(p<.4)critter(150,140,CH.priest,{s:1.4});if(p<.72)critter(130,150,CH.farq,{pose:p>.45&&p<.6?'point':'stand'});else{R(130,150,6,3,'#ffd23f')}critter(L(330,230,seg(p,.1,.2)),166,CH.shrek,{f:-1,pose:p>.1&&p<.25?'up':'stand'});if(p>.58){const k=seg(p,.58,.7);dragon(L(160,120,k),L(60,170,k),1.2,-1,t,{love:p>.75});if(p<.66)for(let i=0;i<14;i++)R(110+(i*17)%100,40+(i*13)%70,3,3,['#d0202f','#2b4fc4','#f2c23a'][i%3])}if(p>.7&&p<.78)sfx('GULP',110,60,'#ffe066',8);c.restore();if(p>.3&&p<.38)fade(.7,'#ffb04a')});
+S(['[true love\'s kiss]','[the curse breaks. she glows. she floats. she lands... still an ogre]','FIONA: But I\'m supposed to be beautiful.','SHREK: You are beautiful.'],(t,p)=>{cathedral(t);fade(.3);const fl=p>.2&&p<.55;critter(140,166,CH.shrek,{grin:p>.7});critter(176,166-(fl?Math.sin(seg(p,.2,.55)*Math.PI)*40:0),CH.fionaWO,{f:-1,rot:fl?seg(p,.2,.55)*Math.PI*2:0});if(p<.2)heart(158,100);if(fl){alpha(.5,()=>disc(176,120,26,'#fff6c0'));for(let i=0;i<10;i++)R(176+Math.cos(t*4+i)*30,120+Math.sin(t*4+i)*30,2,2,'#fff')}if(p>.85)heart(158,90-((t*10)%20))});
+S(['[a swamp wedding. everyone is invited. the Three Blind Mice dance with no regard for safety.]','[Donkey sings a 1960s cover you also cannot hear]','[the dragon catches the bouquet]','[Shrek and Fiona ride off in an onion carriage. happily ever after.]'],(t,p)=>{swamp('dusk',t);vines();const cast=[[50,CH.gingy],[80,CH.pino],[110,CH.pig],[230,CH.wolf]];cast.forEach(([x,ch],i)=>critter(x,166-Math.abs(Math.sin(t*6+i))*6,ch,{pose:'up'}));for(let i=0;i<3;i++)critter(250+i*14,170,CH.mouse,{rot:t*4+i});dragon(300,170,.8,-1,t,{love:1});donkey(170,166,1.8,1,t,{talk:1,ears:1});notes(t,6,'#fff');if(p>.45&&p<.65){const k=seg(p,.45,.65);disc(L(150,290,k),L(100,110,k)-Math.sin(k*Math.PI)*50,4,'#ff8ab0')}if(p>.7){const k=seg(p,.7,1),x=L(-40,340,k);disc(x,140,16,'#e8d8a0');R(x-14,150,28,4,'#8a6a3a');disc(x-10,158,5,'#5a3a1a');disc(x+10,158,5,'#5a3a1a');R(x-2,122,4,6,'#4a8a3a');critter(x-4,142,CH.shrek,{s:.9});critter(x+6,142,CH.fionaWO,{s:.9,f:-1})}});
+S(['[no post-credits scene. except Gingy. there\'s always Gingy.]','[thanks for watching. the end. probably.]'],(t,p)=>{R(0,0,W,H,'#1a1408');const cr=['THE END','','SHREK (2001)','RETOLD FROM MEMORY, SILENTLY','','SHREK ................ LAYERS','DONKEY ............... PARFAITS','FIONA ................ KUNG FU','LORD FARQUAAD ........ EATEN','THE DRAGON ........... IN LOVE','GINGY ................ NOT THE BUTTONS','THE MUFFIN MAN ....... MARRIED','THE BLUEBIRD ......... POPPED','THE PAGE ............. USED','','UNOFFICIAL FAN PARODY.','NOT AFFILIATED WITH THE FILM\'S','MAKERS OR DISTRIBUTORS.'];const y0=L(190,-cr.length*12+90,p);cr.forEach((s,i)=>T(s,W/2,y0+i*12,i===0?OG:'#f4ead0',i===0?12:6));critter(L(-20,340,p),176,CH.gingy,{pose:'walk',ph:t*10,s:2})},{min:14});
+
+// ============================================================ timeline + player
+const TARGET=360;
+const weight=s=>1.5+s.length/20;
+let raw=0;for(const sc of SCENES){sc.w=sc.lines.map(weight);sc.raw=Math.max(sc.min,sc.w.reduce((a,b)=>a+b,0));raw+=sc.raw}
+let acc=0;const K=TARGET/raw;for(const sc of SCENES){sc.start=acc;sc.dur=sc.raw*K;acc+=sc.dur;const tot=sc.w.reduce((a,b)=>a+b,0),pad=(sc.raw-tot)/2*K;let a2=sc.start+Math.max(0,pad);sc.cues=sc.w.map(w=>{const s=a2;a2+=w*K;return s})}
+const TOTAL=acc;
+const FILMS=[{name:'ONCE UPON A TIME',yr:'Act I',blurb:'Swamp. Donkey. Squatters. Duloc.'},{name:'LAYERS',yr:'Act II',blurb:'Onions. Dragon. Fiona does kung fu.'},{name:"TRUE LOVE'S KISS",yr:'Act III',blurb:'Windmill. Wedding. One big gulp.'}];
+FILMS.forEach((f,i)=>{f.start=SCENES.find(s=>s.film===i).start});
+
+const $=id=>document.getElementById(id);
+const subs=$('subs'),scrub=$('scrub'),timeEl=$('time'),playBtn=$('play'),startBtn=$('start'),nowEl=$('now');
+scrub.max=TOTAL.toFixed(1);
+let time=0,playing=false,started=false,last=0,lastSub=null,lastFilm=-1;
+const fmt=s=>{s=Math.max(0,Math.round(s));return String(s/60|0).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+$('runtime').textContent='Runtime '+fmt(TOTAL)+' · subtitles on · swamp included';
+const esc=s=>s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]);
+function fmtSub(s){if(!s)return'';if(s[0]==='[')return'<span class="cue">'+esc(s)+'</span>';const m=s.match(/^([A-Z][A-Z0-9 .'()#\-]*?):\s(.*)$/);return m?'<span class="spk">'+esc(m[1])+':</span> '+esc(m[2]):esc(s)}
+function locate(tm){let i=0;while(i<SCENES.length-1&&tm>=SCENES[i+1].start)i++;return i}
+const ticks=$('ticks');FILMS.forEach((f,i)=>{if(i){const el=document.createElement('i');el.style.left=(f.start/TOTAL*100)+'%';ticks.appendChild(el)}});
+const chap=$('chapters');FILMS.forEach((f,i)=>{const b=document.createElement('button');b.type='button';b.innerHTML='<b>'+f.yr.toUpperCase()+'. '+f.name+'</b><small>'+f.blurb+'</small>';b.onclick=()=>{seek(f.start);if(!playing)play()};chap.appendChild(b);f.btn=b});
+function render(){
+  const i=locate(time),sc=SCENES[i],st=time-sc.start,p=clamp(st/sc.dur);
+  c.save();c.imageSmoothingEnabled=false;
+  CUE=-1;for(let k=0;k<sc.cues.length;k++)if(time>=sc.cues[k])CUE=k;
+  try{sc.draw(st,p,sc.dur)}catch(e){R(0,0,W,H,'#000');console.error('scene',i,e)}
+  c.restore();
+  const edge=Math.min(st,sc.dur-st);if(i>0||st>.3)fade(1-clamp(edge/.3));
+  let li=-1;for(let k=0;k<sc.cues.length;k++)if(time>=sc.cues[k])li=k;
+  const txt=started&&li>=0?sc.lines[li]:'';
+  if(txt!==lastSub){subs.innerHTML=fmtSub(txt);lastSub=txt}
+  if(sc.film!==lastFilm){lastFilm=sc.film;FILMS.forEach((f,k)=>f.btn.classList.toggle('on',k===sc.film));nowEl.textContent='SHREK · '+FILMS[sc.film].yr.toUpperCase()}
+  scrub.value=time.toFixed(1);timeEl.textContent=fmt(time)+' / '+fmt(TOTAL);
+}
+function poster(t){swamp('dusk',t);fade(.25);T('SHREK',W/2,40,OG,20,'center','#2a3a1a');T('THE PIXEL SWAMP EDITION',W/2,64,'#fff',6);critter(130,160,CH.shrek,{grin:1,pose:'hip'});donkey(200,166,2,-1,t,{talk:(t|0)%2,ears:1});critter(250,160,CH.fiona,{f:-1})}
+function loop(ts){const dt=last?Math.min(.1,(ts-last)/1000):0;last=ts;
+  if(playing){time+=dt;if(time>=TOTAL){time=TOTAL-.01;pause()}}
+  if(!started){c.save();poster(ts/1000);c.restore();nowEl.textContent=''}else render();
+  requestAnimationFrame(loop)}
+function play(){started=true;playing=true;startBtn.hidden=true;playBtn.textContent='PAUSE';if(time>=TOTAL-.05)time=0}
+function pause(){playing=false;playBtn.textContent='PLAY'}
+function seek(v){started=true;startBtn.hidden=true;time=clamp(v,0,TOTAL-.01)}
+startBtn.onclick=play;playBtn.onclick=()=>playing?pause():play();
+$('prev').onclick=()=>{const i=locate(time);seek(time-SCENES[i].start>2||i===0?SCENES[i].start:SCENES[i-1].start)};
+$('next').onclick=()=>{const i=locate(time);if(i<SCENES.length-1)seek(SCENES[i+1].start)};
+scrub.oninput=()=>seek(+scrub.value);
+$('fs').onclick=()=>{const el=$('screen');try{const r=document.fullscreenElement?document.exitFullscreen():el.requestFullscreen&&el.requestFullscreen();if(r&&r.catch)r.catch(()=>{})}catch(e){}};
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'&&e.key!==' ')return;const k=e.key.toLowerCase();
+  if(k===' '){e.preventDefault();playing?pause():play()}else if(k==='arrowright'){seek(time+10)}else if(k==='arrowleft'){seek(time-10)}else if(k==='n'){$('next').click()}else if(k==='p'){$('prev').click()}else if(k==='f'){$('fs').click()}});
+window.__movie={SCENES,TOTAL,seek:v=>{seek(v)},render};
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
